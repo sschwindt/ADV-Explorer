@@ -1,69 +1,103 @@
-# Prerequisites
-*.d
-
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Linker files
-*.ilk
-
-# Debugger Files
-*.pdb
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-*.so.*
-
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
-
+# ---------------------------------------
 # Build directories
-build/
-Build/
-build-*/
+# ---------------------------------------
+/build/
+/build-*/
+/out/
+/dist/
+/bin/
+/obj/
 
-# CMake generated files
+# ---------------------------------------
+# CMake-generated files
+# ---------------------------------------
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
-Makefile
-install_manifest.txt
+CTestTestfile.cmake
 compile_commands.json
+CMakeUserPresets.json
+Testing/
 
-# Temporary files
-*.tmp
+# ---------------------------------------
+# Compiler intermediate files
+# ---------------------------------------
+*.o
+*.obj
+*.d
+*.dep
+
+# Debugging and profiling output
+*.pdb
+*.ilk
+*.dSYM/
+*.gcda
+*.gcno
+*.profraw
+*.profdata
+
+# ---------------------------------------
+# Visual Studio
+# ---------------------------------------
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.VC.db
+*.VC.VC.opendb
+*.opendb
+
+# ---------------------------------------
+# JetBrains IDEs
+# ---------------------------------------
+.idea/
+cmake-build-*/
+
+# ---------------------------------------
+# VS Code local settings
+# ---------------------------------------
+.vscode/*
+!.vscode/extensions.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# ---------------------------------------
+# Operating-system files
+# ---------------------------------------
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux desktop/file-manager metadata
+.directory
+.Trash-*/
+
+# macOS, in case a contributor uses it
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ---------------------------------------
+# Temporary files and logs
+# ---------------------------------------
 *.log
+*.tmp
+*.temp
 *.bak
 *.swp
-
-# vcpkg
-vcpkg_installed/
-
-# debug information files
-*.dwo
-
-# test output & cache
-Testing/
+*.swo
+*~
 .cache/
+
+# ---------------------------------------
+# Local configuration and secrets
+# ---------------------------------------
+.env
+.env.*
+!.env.example
+*.local
+secrets/
