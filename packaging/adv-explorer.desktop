@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=ADV-Explorer
+Comment=Interactive analysis of acoustic Doppler velocimetry measurements
+Exec=adv-explorer
+Icon=adv-explorer
+Categories=Science;Education;DataVisualization;
+Terminal=false

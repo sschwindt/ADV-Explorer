@@ -106,6 +106,8 @@ target_compile_definitions(adv-explorer PRIVATE
 )
 
 install(TARGETS adv-explorer RUNTIME DESTINATION bin)
+# ship the profile-stats template next to the executable (also inside AppImages)
+install(FILES templates/ADV-profiles.xlsx DESTINATION bin/templates)
 
 # ---------------------------------------------------------------------------
 # Tests

@@ -37,13 +37,22 @@ statistics, corrects probe misalignment, and exports plots, data, and statistics
 
 ## Requirements
 
-### Running
+### Running (no build required)
 
-- Linux (x86_64) or Windows 10/11 (x86_64); download the packaged builds from the
-  GitHub releases page (built by CI).
-- No further dependencies: Qt libraries are bundled in the Windows package; the
-  Linux tarball requires the distribution Qt 6 runtime
-  (`sudo apt install libqt6widgets6 libqt6printsupport6` on Debian/Ubuntu).
+Download the executables from the
+[releases page](https://github.com/sschwindt/ADV-Explorer/releases):
+
+- **Linux** (Debian 12+, Ubuntu 22.04+, Linux Mint 21+, x86_64):
+  download `adv-explorer-linux-x86_64.AppImage`, make it executable, and run it.
+  All Qt libraries are bundled.
+
+  ```bash
+  chmod +x adv-explorer-linux-x86_64.AppImage
+  ./adv-explorer-linux-x86_64.AppImage
+  ```
+
+- **Windows 10/11** (x86_64): download `adv-explorer-windows-x86_64.zip`, unzip
+  it, and double-click `adv-explorer.exe`. All Qt DLLs are included.
 
 ### Building from source
 

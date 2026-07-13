@@ -8,14 +8,17 @@ on:
 
 jobs:
   linux:
-    runs-on: ubuntu-24.04
+    # 22.04 keeps the glibc requirement low so the AppImage also runs on
+    # Debian 12, Ubuntu 22.04+, Linux Mint 21+ and similar distributions
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Qt 6
         run: |
           sudo apt-get update
-          sudo apt-get install -y qt6-base-dev qt6-base-dev-tools qt6-base-private-dev libgl1-mesa-dev
+          sudo apt-get install -y qt6-base-dev qt6-base-dev-tools qt6-base-private-dev \
+            libgl1-mesa-dev libxkbcommon-dev
 
       - name: Configure
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
@@ -24,20 +27,28 @@ jobs:
         run: cmake --build build -j$(nproc)
 
       - name: Test
-        run: ctest --test-dir build --output-on-failure
+        run: QT_QPA_PLATFORM=offscreen ctest --test-dir build --output-on-failure
 
-      - name: Package
+      - name: Package AppImage
         run: |
-          mkdir -p dist/adv-explorer/templates
-          cp build/adv-explorer dist/adv-explorer/
-          cp templates/ADV-profiles.xlsx dist/adv-explorer/templates/
-          cp LICENSE README.md dist/adv-explorer/
-          tar czf adv-explorer-linux-x86_64.tar.gz -C dist adv-explorer
+          cmake --install build --prefix AppDir/usr
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy*.AppImage
+          cp img/logo.png adv-explorer.png
+          export QMAKE=/usr/bin/qmake6
+          ./linuxdeploy-x86_64.AppImage --appimage-extract-and-run \
+            --appdir AppDir \
+            --desktop-file packaging/adv-explorer.desktop \
+            --icon-file adv-explorer.png \
+            --plugin qt \
+            --output appimage
+          mv ADV-Explorer*.AppImage adv-explorer-linux-x86_64.AppImage
 
       - uses: actions/upload-artifact@v4
         with:
           name: adv-explorer-linux
-          path: adv-explorer-linux-x86_64.tar.gz
+          path: adv-explorer-linux-x86_64.AppImage
 
   windows:
     runs-on: windows-2022
@@ -89,5 +100,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            adv-explorer-linux-x86_64.tar.gz
+            adv-explorer-linux-x86_64.AppImage
             adv-explorer-windows-x86_64.zip
