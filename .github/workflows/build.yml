@@ -35,7 +35,8 @@ jobs:
           wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
           chmod +x linuxdeploy*.AppImage
-          cp img/logo.png adv-explorer.png
+          # linuxdeploy only accepts standard icon resolutions (e.g. 256x256)
+          cp packaging/adv-explorer-256.png adv-explorer.png
           export QMAKE=/usr/bin/qmake6
           # the qt plugin is spawned as a nested AppImage; make sure it can
           # run even without FUSE
