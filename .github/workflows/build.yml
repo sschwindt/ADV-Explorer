@@ -18,7 +18,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y qt6-base-dev qt6-base-dev-tools qt6-base-private-dev \
-            libgl1-mesa-dev libxkbcommon-dev
+            libgl1-mesa-dev libxkbcommon-dev libfuse2
 
       - name: Configure
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
@@ -37,6 +37,9 @@ jobs:
           chmod +x linuxdeploy*.AppImage
           cp img/logo.png adv-explorer.png
           export QMAKE=/usr/bin/qmake6
+          # the qt plugin is spawned as a nested AppImage; make sure it can
+          # run even without FUSE
+          export APPIMAGE_EXTRACT_AND_RUN=1
           ./linuxdeploy-x86_64.AppImage --appimage-extract-and-run \
             --appdir AppDir \
             --desktop-file packaging/adv-explorer.desktop \
