@@ -1,0 +1,93 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt 6
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qt6-base-dev qt6-base-dev-tools qt6-base-private-dev libgl1-mesa-dev
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Package
+        run: |
+          mkdir -p dist/adv-explorer/templates
+          cp build/adv-explorer dist/adv-explorer/
+          cp templates/ADV-profiles.xlsx dist/adv-explorer/templates/
+          cp LICENSE README.md dist/adv-explorer/
+          tar czf adv-explorer-linux-x86_64.tar.gz -C dist adv-explorer
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adv-explorer-linux
+          path: adv-explorer-linux-x86_64.tar.gz
+
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt 6
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.7.*'
+          arch: win64_msvc2019_64
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -G "Visual Studio 17 2022" -A x64
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Package with windeployqt
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist/adv-explorer/templates | Out-Null
+          Copy-Item build/Release/adv-explorer.exe dist/adv-explorer/
+          Copy-Item templates/ADV-profiles.xlsx dist/adv-explorer/templates/
+          Copy-Item LICENSE,README.md dist/adv-explorer/
+          windeployqt --release --no-translations dist/adv-explorer/adv-explorer.exe
+          Compress-Archive -Path dist/adv-explorer -DestinationPath adv-explorer-windows-x86_64.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adv-explorer-windows
+          path: adv-explorer-windows-x86_64.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [linux, windows]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            adv-explorer-linux-x86_64.tar.gz
+            adv-explorer-windows-x86_64.zip

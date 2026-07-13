@@ -1,0 +1,112 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project status
+
+The application is implemented in **C++17 / Qt 6 Widgets / CMake**, licensed **GPLv3** (relicensed
+from Apache-2.0 because QCustomPlot is GPL). Layout:
+
+- `src/core/` - GUI-free library `advcore`: readers (`VnaReader`, `CsvReader`), statistics
+  (`FlowStats`), despiking (`Despike`), rotation corrections (`Rotation`), point model
+  (`MeasurementPoint`, `ProjectModel`), `.advProj` serialization (`Project`), xlsx export
+  (`ProfileStatsExport`).
+- `src/gui/` - `MainWindow`, `FlumeView` (interactive 1:5 top view), `PointWizard`, `ImportWizard`,
+  `PlotFrame` (QCustomPlot time series), `ProfileFrame` (vertical profiles + probe alignment),
+  `SeriesStyleDialog`, `AboutDialog`.
+- `third_party/` - vendored QCustomPlot (GPLv3) and KissFFT (BSD); QXlsx (MIT) comes via CMake
+  FetchContent (network needed at configure time).
+- `tests/tst_core.cpp` - QtTest suite with numeric parity against tke-calculator (reference values
+  hardcoded from numpy/pandas runs).
+- `tools/make_template.py` - regenerates `templates/ADV-profiles.xlsx`; column order must match
+  `statsexport::profileTemplateColumns()` in `src/core/ProfileStatsExport.cpp`.
+- `instructions.md` - original product specification.
+- `tke-calculator-main/` - Python predecessor; source of truth for numerical methods and test data
+  (`data/test-example/*.vna`).
+
+## Build and test
+
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Release   # needs qt6-base-dev qt6-base-dev-tools
+cmake --build build -j
+ctest --test-dir build --output-on-failure  # runs tests/tst_core
+./build/adv-explorer                        # launch the GUI
+```
+
+Run a single test function: `./build/tests/tst_core flowStatsParity`.
+Windows builds run in CI (`.github/workflows/build.yml`); no cross-compilation.
+
+Python tooling runs in the `adv-explorer` mamba env (numpy, pandas, openpyxl):
+`mamba run -n adv-explorer python tools/make_template.py`.
+
+## What the application must do (from `instructions.md`)
+
+ADV-Explorer visualizes and analyzes acoustic Doppler velocimetry (ADV) measurements (Nortek Vectrino,
+UBERTONE). Core pieces:
+
+- **Interactive flume frame** (1:5 aspect, light-blue background): top-view where clicking places an
+  x-y measurement location. Coordinate origin at center-left inlet: x=0,y=0 there, z=0 at bottom pointing
+  up; left bank negative y, right bank positive y; flow left→right. Each x-y location holds one or more
+  z-points (circle markers), each with its own data file, water depth (setting depth at an x-y overrides
+  it for all points sharing that x-y), and start/end time.
+- **Time-series plot frame(s)**: per-point column selection, color-blind-friendly colormaps, configurable
+  line/marker style, superposition of multiple points; plus a derived per-file TKE-like fluctuation term
+  `0.5*(std(U)² + std(V)² + std(W)²)`.
+- **Despiking filters**: linear-interpolation gap fill; correlation threshold (default avg 70); SNR
+  threshold (default clean where SNR < 20); velocity threshold (clean where `|comp| > k·std`); the
+  Goring & Nikora acceleration/velocity method from `tke-calculator-main/rmspike.py`; plus additional
+  filters to investigate from https://github.com/farzadasgari/proadv.
+- **Vertical profile frame**: z or z/h axis, U/V/W components, stats legend (mean, std, skewness,
+  kurtosis, stresses u'v'/u'w'/v'w', TKE, dissipation eps), and **heading/roll/pitch corrections** per
+  x-y profile to zero out V and W means (auto-proposed value + manual override) to compensate probe
+  misalignment.
+- **Exports**: PNG at 300 dpi (as displayed), CSV of shown/corrected columns, per-point and per-profile
+  stats (absolute z and relative z/h), including into `templates/ADV-profiles.xlsx` (which also computes
+  velocity magnitude and direction).
+- **Project files** `.advProj`: self-contained (embed data file contents + all settings) so they open on
+  another machine without relative-path breakage.
+- **Menus**: File (load/save project), Import (multi-file wizard assigning x,y,z per file), Export
+  (Data→csv, Plots→png), Processing (CPU count, capped at available cores), About (license, repo link,
+  author/date/version).
+
+## Reference codebase: `tke-calculator-main/`
+
+Original MATLAB→Python port (Nepf Lab, MIT). Reuse its methods when implementing the new app.
+
+Run it (per this machine's global setup, Python is invoked through mamba):
+
+```bash
+cd tke-calculator-main
+mamba run -n wrr-proj python profile_analyst.py            # uses input.xlsx
+mamba run -n wrr-proj python profile_analyst.py other.xlsx # custom input workbook
+```
+
+Requirements: numpy, pandas, matplotlib, openpyxl (Excel I/O). There are no automated tests.
+
+Key modules and the pipeline:
+
+- `profile_analyst.py` - orchestrator (`process_vna_files`). Reads `input.xlsx` for setup, discovers
+  `.vna` files in a data folder, per file: reads → `flowstat` → `rmspike` → re-`flowstat` on despiked
+  data → writes raw/spike/stats `.xlsx` and normalized-TKE PNGs.
+- `flowstat.py` - per-file statistics: means, std, stderr for U/V/W, Reynolds stresses (u'v', u'w'),
+  TKE `0.5*(std_u²+std_v²+std_w²)`. `profile_type="lp"` (longitudinal, downward probe) uses `w1` and
+  ignores `w2`; otherwise the second vertical beam `w2` is also processed.
+- `rmspike.py` - Goring & Nikora (2002) despiking with acceleration- or velocity-threshold methods.
+  Note SonTek/Nortek defaults cited: SNR 15, correlation 70. This function **counts** spikes and, for the
+  chosen method, replaces flagged samples with NaN (it does not interpolate).
+- `config.py` - `SCRIPT_DIR`, `HEADERS`, `PROFILE_KEYS` (`longitudinal`→`lp`, `down`→`down`), logging.
+- `profile_plotter.py` - minimal matplotlib helpers (starting point only).
+
+### `.vna` file format and coordinate encoding (important domain knowledge)
+
+- `.vna` = whitespace-delimited ASCII table read by `read_vna`. Columns (2 leading throwaway columns
+  skipped): `time (s)`, `sample no.`, then per-beam `u/v/w1/w2 (m/s)`, amplitudes (dB), SNR, correlation.
+  `.vno` is the paired **binary** original - do not parse it as text.
+- **Coordinates are encoded in the file name**: `XX_YY_ZZ_something.vna`, where XX/YY/ZZ are x/y/z in
+  **centimeters** (divided by 100 → meters). A leading `__` encodes a negative coordinate (see
+  `vna_file_name2coordinates`). The new app instead lets users assign x/y/z interactively, but must still
+  read the same `.vna` column layout.
+
+## Conventions
+
+- Documentation must not use the `—` (em dash) character (per the author's global preference).
