@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 project(ADV-Explorer
-    VERSION 0.1.0
+    VERSION 0.1.1
     DESCRIPTION "Interactive analysis of acoustic Doppler velocimetry (ADV) measurements"
     HOMEPAGE_URL "https://github.com/sschwindt/ADV-Explorer"
     LANGUAGES C CXX
