@@ -195,7 +195,9 @@ void PointWizard::buildUi(bool editMode)
     m_gnKSpin->setValue(3.0);
     gnRow->addWidget(m_gnKSpin);
     gnRow->addStretch();
-    despikeForm->addRow(tr("Goring && Nikora (2002):"), gnRow);
+    // literal ampersand: this label has no buddy widget, so QFormLayout does
+    // not run mnemonic processing and "&&" would render as a double ampersand
+    despikeForm->addRow(tr("Goring & Nikora (2002):"), gnRow);
 
     m_pstCheck = new QCheckBox(tr("Phase-space thresholding (iterative)"), this);
     despikeForm->addRow(m_pstCheck);

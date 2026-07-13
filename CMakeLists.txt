@@ -90,6 +90,7 @@ set(APP_SOURCES
     src/gui/PlotFrame.cpp
     src/gui/ProfileFrame.cpp
     src/gui/SeriesStyleDialog.cpp
+    src/gui/PlotOptionsDialog.cpp
     src/gui/AboutDialog.cpp
     src/resources.qrc
 )

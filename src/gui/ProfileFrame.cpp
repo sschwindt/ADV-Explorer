@@ -136,12 +136,15 @@ ProfileFrame::ProfileFrame(ProjectModel *model, QWidget *parent)
     toolbar->addSpacing(12);
     auto *correctionButton = new QPushButton(tr("Probe alignment..."), this);
     toolbar->addWidget(correctionButton);
+    auto *optionsButton = new QPushButton(tr("Plot options..."), this);
+    toolbar->addWidget(optionsButton);
     toolbar->addStretch();
 
     m_plot->setInteractions(QCP::iRangeDrag | QCP::iRangeZoom);
     m_plot->legend->setVisible(true);
     m_plot->xAxis->setLabel(tr("velocity (m/s)"));
     m_plot->yAxis->setLabel(tr("z (m)"));
+    m_plotOptions.applyTo(m_plot);
 
     // top-right statistics legend panel
     m_statsPanel = new QPlainTextEdit(this);
@@ -168,6 +171,7 @@ ProfileFrame::ProfileFrame(ProjectModel *model, QWidget *parent)
         connect(check, &QCheckBox::toggled, this, &ProfileFrame::rebuildPlot);
     connect(m_zRadio, &QRadioButton::toggled, this, &ProfileFrame::rebuildPlot);
     connect(correctionButton, &QPushButton::clicked, this, &ProfileFrame::openCorrectionDialog);
+    connect(optionsButton, &QPushButton::clicked, this, &ProfileFrame::editPlotOptions);
 
     connect(m_model, &ProjectModel::pointAdded, this, &ProfileFrame::refresh);
     connect(m_model, &ProjectModel::pointChanged, this, &ProfileFrame::refresh);
@@ -329,6 +333,16 @@ void ProfileFrame::openCorrectionDialog()
         m_model->setCorrection(key, dialog.angles());
 }
 
+void ProfileFrame::editPlotOptions()
+{
+    PlotOptionsDialog dialog(m_plotOptions, this);
+    if (dialog.exec() == QDialog::Accepted) {
+        m_plotOptions = dialog.options();
+        m_plotOptions.applyTo(m_plot);
+        m_plot->replot();
+    }
+}
+
 bool ProfileFrame::exportPng(const QString &filePath, int dpi)
 {
     const double scale = dpi / 96.0;
@@ -343,6 +357,7 @@ QJsonObject ProfileFrame::saveState() const
     state[QStringLiteral("v")] = m_vCheck->isChecked();
     state[QStringLiteral("w")] = m_wCheck->isChecked();
     state[QStringLiteral("relative")] = m_zhRadio->isChecked();
+    state[QStringLiteral("plotOptions")] = m_plotOptions.toJson();
     return state;
 }
 
@@ -355,5 +370,9 @@ void ProfileFrame::restoreState(const QJsonObject &state)
     m_vCheck->setChecked(state[QStringLiteral("v")].toBool(true));
     m_wCheck->setChecked(state[QStringLiteral("w")].toBool(true));
     m_zhRadio->setChecked(state[QStringLiteral("relative")].toBool(false));
+    if (state.contains(QStringLiteral("plotOptions"))) {
+        m_plotOptions = PlotOptions::fromJson(state[QStringLiteral("plotOptions")].toObject());
+        m_plotOptions.applyTo(m_plot);
+    }
     rebuildPlot();
 }

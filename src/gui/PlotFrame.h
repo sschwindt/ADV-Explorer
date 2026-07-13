@@ -5,6 +5,7 @@
  */
 #pragma once
 
+#include "PlotOptionsDialog.h"
 #include "SeriesStyleDialog.h"
 
 #include <QJsonObject>
@@ -49,6 +50,7 @@ private slots:
     void addSeries();
     void removeSelectedSeries();
     void editSelectedStyle();
+    void editPlotOptions();
     void pointSelectionChanged();
     void applyPalette();
 
@@ -74,4 +76,5 @@ private:
     QComboBox *m_seriesCombo;
     QComboBox *m_paletteCombo;
     QList<Series> m_series;
+    PlotOptions m_plotOptions;
 };

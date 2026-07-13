@@ -70,12 +70,15 @@ PlotFrame::PlotFrame(ProjectModel *model, QWidget *parent)
     m_paletteCombo = new QComboBox(this);
     m_paletteCombo->addItems({tr("Okabe-Ito"), tr("Tol bright"), tr("Tol muted"), tr("Grayscale")});
     toolbar->addWidget(m_paletteCombo);
+    auto *optionsButton = new QPushButton(tr("Plot options..."), this);
+    toolbar->addWidget(optionsButton);
     toolbar->addStretch();
 
     m_plot->setInteractions(QCP::iRangeDrag | QCP::iRangeZoom | QCP::iSelectLegend);
     m_plot->legend->setVisible(true);
     m_plot->xAxis->setLabel(tr("time (s)"));
     m_plot->yAxis->setLabel(tr("value"));
+    m_plotOptions.applyTo(m_plot);
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -85,6 +88,7 @@ PlotFrame::PlotFrame(ProjectModel *model, QWidget *parent)
     connect(addButton, &QPushButton::clicked, this, &PlotFrame::addSeries);
     connect(removeButton, &QPushButton::clicked, this, &PlotFrame::removeSelectedSeries);
     connect(styleButton, &QPushButton::clicked, this, &PlotFrame::editSelectedStyle);
+    connect(optionsButton, &QPushButton::clicked, this, &PlotFrame::editPlotOptions);
     connect(m_pointCombo, &QComboBox::currentIndexChanged,
             this, &PlotFrame::pointSelectionChanged);
     connect(m_paletteCombo, &QComboBox::currentIndexChanged, this, &PlotFrame::applyPalette);
@@ -220,6 +224,16 @@ void PlotFrame::editSelectedStyle()
     }
 }
 
+void PlotFrame::editPlotOptions()
+{
+    PlotOptionsDialog dialog(m_plotOptions, this);
+    if (dialog.exec() == QDialog::Accepted) {
+        m_plotOptions = dialog.options();
+        m_plotOptions.applyTo(m_plot);
+        m_plot->replot();
+    }
+}
+
 void PlotFrame::applyPalette()
 {
     const QList<QColor> colors = paletteColors();
@@ -321,6 +335,7 @@ QJsonObject PlotFrame::saveState() const
 {
     QJsonObject state;
     state[QStringLiteral("palette")] = m_paletteCombo->currentIndex();
+    state[QStringLiteral("plotOptions")] = m_plotOptions.toJson();
     QJsonArray seriesArray;
     for (const Series &series : m_series) {
         QJsonObject o;
@@ -336,6 +351,10 @@ QJsonObject PlotFrame::saveState() const
 void PlotFrame::restoreState(const QJsonObject &state)
 {
     m_paletteCombo->setCurrentIndex(state[QStringLiteral("palette")].toInt(0));
+    if (state.contains(QStringLiteral("plotOptions"))) {
+        m_plotOptions = PlotOptions::fromJson(state[QStringLiteral("plotOptions")].toObject());
+        m_plotOptions.applyTo(m_plot);
+    }
     m_series.clear();
     for (const QJsonValue &value : state[QStringLiteral("series")].toArray()) {
         const QJsonObject o = value.toObject();

@@ -5,6 +5,8 @@
  */
 #pragma once
 
+#include "PlotOptionsDialog.h"
+
 #include <QJsonObject>
 #include <QWidget>
 
@@ -39,6 +41,7 @@ public slots:
 private slots:
     void rebuildPlot();
     void openCorrectionDialog();
+    void editPlotOptions();
 
 private:
     QString currentProfileKey() const;
@@ -52,4 +55,5 @@ private:
     QRadioButton *m_zRadio;
     QRadioButton *m_zhRadio;
     QPlainTextEdit *m_statsPanel;
+    PlotOptions m_plotOptions;
 };
