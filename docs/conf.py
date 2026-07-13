@@ -3,7 +3,7 @@
 project = "ADV-Explorer"
 author = "Sebastian Schwindt"
 copyright = "2026, Sebastian Schwindt"
-release = "0.1.2"
+release = "0.1.3"
 
 extensions = []
 

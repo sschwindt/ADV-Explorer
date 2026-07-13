@@ -4,8 +4,8 @@
  * Licensed under the GNU General Public License v3 or later.
  *
  * Reference values were computed with numpy/pandas using the algorithms of
- * the tke-calculator predecessor code (flowstat.py, rmspike.py) on
- * tke-calculator-main/data/test-example/8_46.5_6_T3.vna.
+ * the tke-calculator predecessor code (flowstat.py, rmspike.py,
+ * https://tke-calculator.readthedocs.io/) on tests/data/8_46.5_6_T3.vna.
  */
 #include <QtTest>
 

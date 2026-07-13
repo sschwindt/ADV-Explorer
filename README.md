@@ -122,8 +122,9 @@ build\Release\adv-explorer.exe
 ## Predecessor code
 
 The numerical methods (Goring and Nikora despiking, flow statistics, TKE) were
-ported from the Python/Matlab [tke-calculator](https://tke-calculator.readthedocs.io/),
-included in `tke-calculator-main/` for reference and used by the unit tests.
+ported from the Python/Matlab [tke-calculator](https://tke-calculator.readthedocs.io/).
+The unit tests assert numeric parity against reference values computed with that
+code (sample data in `tests/data/`).
 
 ## License
 

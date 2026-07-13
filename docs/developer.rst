@@ -42,8 +42,9 @@ Tests
 The QtTest suite verifies the readers, statistics, despiking, rotation
 corrections, and project serialization. Several tests assert numeric parity
 with the Python/Matlab predecessor
-`tke-calculator <https://tke-calculator.readthedocs.io/>`_, whose code and
-sample data live in ``tke-calculator-main/``.
+`tke-calculator <https://tke-calculator.readthedocs.io/>`_ (reference values
+computed with numpy/pandas are hardcoded in ``tests/tst_core.cpp``; the sample
+measurement lives in ``tests/data/``).
 
 .. code-block:: bash
 
