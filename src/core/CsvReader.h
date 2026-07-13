@@ -24,7 +24,8 @@ class CsvReader
 public:
     struct Preview {
         QChar delimiter;
-        bool hasHeader = false;
+        bool hasHeader = false;          ///< column names came from the file
+        int headerLines = 0;             ///< leading non-numeric lines to skip
         QStringList columnNames;         ///< header or "column 1", "column 2", ...
         QList<QStringList> sampleRows;   ///< up to maxRows parsed rows
         int columnCount = 0;

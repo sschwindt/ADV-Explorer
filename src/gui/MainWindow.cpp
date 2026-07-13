@@ -12,6 +12,7 @@
 #include "PointWizard.h"
 #include "ProfileFrame.h"
 
+#include "core/CsvReader.h"
 #include "core/ProfileStatsExport.h"
 #include "core/Project.h"
 #include "core/ProjectModel.h"
@@ -19,6 +20,7 @@
 #include <QActionGroup>
 #include <QApplication>
 #include <QCloseEvent>
+#include <QDir>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -33,6 +35,8 @@
 #include <QTextStream>
 #include <QVBoxLayout>
 #include <QWidgetAction>
+
+#include <cmath>
 
 using namespace adv;
 
@@ -80,15 +84,20 @@ MainWindow::MainWindow(QWidget *parent)
 void MainWindow::buildMenus()
 {
     // --- File ---------------------------------------------------------------
+    // note: the addAction(text, shortcut, receiver, slot) convenience overload
+    // only exists since Qt 6.3; set shortcuts explicitly for Qt 6.2 support
     QMenu *fileMenu = menuBar()->addMenu(tr("&File"));
-    fileMenu->addAction(tr("&New project"), QKeySequence::New, this, &MainWindow::newProject);
-    fileMenu->addAction(tr("&Open project..."), QKeySequence::Open,
-                        this, &MainWindow::openProjectDialog);
-    fileMenu->addAction(tr("&Save project"), QKeySequence::Save, this, &MainWindow::saveProject);
-    fileMenu->addAction(tr("Save project &as..."), QKeySequence::SaveAs,
-                        this, &MainWindow::saveProjectAs);
+    fileMenu->addAction(tr("&New project"), this, &MainWindow::newProject)
+        ->setShortcut(QKeySequence::New);
+    fileMenu->addAction(tr("&Open project..."), this, &MainWindow::openProjectDialog)
+        ->setShortcut(QKeySequence::Open);
+    fileMenu->addAction(tr("&Save project"), this, &MainWindow::saveProject)
+        ->setShortcut(QKeySequence::Save);
+    fileMenu->addAction(tr("Save project &as..."), this, &MainWindow::saveProjectAs)
+        ->setShortcut(QKeySequence::SaveAs);
     fileMenu->addSeparator();
-    fileMenu->addAction(tr("&Quit"), QKeySequence::Quit, qApp, &QApplication::quit);
+    fileMenu->addAction(tr("&Quit"), qApp, &QApplication::quit)
+        ->setShortcut(QKeySequence::Quit);
 
     // --- Import ---------------------------------------------------------------
     QMenu *importMenu = menuBar()->addMenu(tr("&Import"));
@@ -397,4 +406,109 @@ void MainWindow::showAbout()
 {
     AboutDialog dialog(this);
     dialog.exec();
+}
+
+bool MainWindow::captureDocScreenshots(const QString &outputDir)
+{
+    if (!QDir().mkpath(outputDir))
+        return false;
+
+    // demo vertical profile from the u-v-w tables shipped in input-data/;
+    // the u component is scaled per depth to a log-law-like shape so the
+    // profile view is illustrative (screenshots only, never analysis output)
+    auto addCsvPoint = [this](const QString &filePath, double x, double y,
+                              double z, double depth, double uScale) -> QUuid {
+        QHash<Role, int> mapping;
+        mapping.insert(Role::U, 0);
+        mapping.insert(Role::V, 1);
+        mapping.insert(Role::W1, 2);
+        QString error;
+        MeasurementPoint point;
+        point.data = CsvReader::readFile(filePath, mapping, &error);
+        if (point.data.isEmpty())
+            return QUuid();
+        point.data.synthesizeTime(200.0);
+        const int uColumn = point.data.columnOfRole(Role::U);
+        if (uColumn >= 0 && uScale != 1.0) {
+            for (double &u : point.data.column(uColumn))
+                u *= uScale;
+        }
+        point.x = x;
+        point.y = y;
+        point.z = z;
+        point.waterDepth = depth;
+        point.despike.velEnabled = true;
+        return m_model->addPoint(point);
+    };
+
+    QList<QUuid> profileIds;
+    for (int i = 1; i <= 5; ++i) {
+        const double z = 0.05 * i;
+        const double uScale = 0.6 + 0.4 * std::pow(z / 0.30, 0.4);
+        const QUuid id = addCsvPoint(QStringLiteral("input-data/vel%1.dat").arg(i),
+                                     0.5, 0.0, z, 0.30, uScale);
+        if (!id.isNull())
+            profileIds.append(id);
+    }
+    addCsvPoint(QStringLiteral("input-data/vel7.dat"), 1.5, 0.2, 0.10, 0.28, 1.0);
+    if (profileIds.size() < 2)
+        return false;
+
+    // preconfigure plots: two velocity series plus the TKE series
+    auto makeSeries = [](const QUuid &id, const QString &column, const QString &color) {
+        QJsonObject style;
+        style[QStringLiteral("lineColor")] = color;
+        style[QStringLiteral("markerColor")] = color;
+        QJsonObject series;
+        series[QStringLiteral("pointId")] = id.toString(QUuid::WithoutBraces);
+        series[QStringLiteral("column")] = column;
+        series[QStringLiteral("style")] = style;
+        return series;
+    };
+    QJsonArray series;
+    series.append(makeSeries(profileIds.at(0), QStringLiteral("u (m/s)"),
+                             QStringLiteral("#0072B2")));
+    series.append(makeSeries(profileIds.at(0), QStringLiteral("w1 (m/s)"),
+                             QStringLiteral("#009E73")));
+    series.append(makeSeries(profileIds.at(3), QStringLiteral("u (m/s)"),
+                             QStringLiteral("#E69F00")));
+    QJsonObject frame;
+    frame[QStringLiteral("palette")] = 0;
+    frame[QStringLiteral("series")] = series;
+    QJsonArray frames;
+    frames.append(frame);
+
+    QJsonObject profileState;
+    profileState[QStringLiteral("profile")] = MeasurementPoint::makeXyKey(0.5, 0.0);
+    profileState[QStringLiteral("u")] = true;
+    profileState[QStringLiteral("v")] = true;
+    profileState[QStringLiteral("w")] = true;
+    profileState[QStringLiteral("relative")] = false;
+
+    QJsonObject settings;
+    settings[QStringLiteral("plotFrames")] = frames;
+    settings[QStringLiteral("profileFrame")] = profileState;
+    settings[QStringLiteral("flumeLength")] = 2.0;
+    settings[QStringLiteral("flumeWidth")] = 0.4;
+    m_model->setPlotSettings(settings);
+    applyPlotSettings();
+
+    auto snap = [this, &outputDir](QWidget *widget, const QString &name) {
+        QCoreApplication::processEvents();
+        return widget->grab().save(outputDir + QLatin1Char('/') + name);
+    };
+
+    m_tabs->setCurrentIndex(0);
+    bool ok = snap(this, QStringLiteral("main-window.png"));
+
+    m_tabs->setCurrentIndex(1);
+    ok = snap(this, QStringLiteral("vertical-profiles.png")) && ok;
+    m_tabs->setCurrentIndex(0);
+
+    PointWizard wizard(0.5, 0.0, this);
+    wizard.show();
+    ok = snap(&wizard, QStringLiteral("point-wizard.png")) && ok;
+    wizard.close();
+
+    return ok;
 }

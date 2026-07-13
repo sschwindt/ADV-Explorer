@@ -5,6 +5,9 @@ measurements, such as those recorded with a Nortek Vectrino or UBERTONE profiler
 ADV-Explorer visualizes velocity time series, filters spikes, computes turbulence
 statistics, corrects probe misalignment, and exports plots, data, and statistics.
 
+**Documentation**: https://adv-explorer.readthedocs.io (motivation, installation,
+usage with screenshots, developer guide)
+
 ## Features
 
 - Interactive flume top view (1:5 aspect ratio) with the coordinate origin at the

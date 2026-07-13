@@ -26,6 +26,10 @@ public:
 
     void openProject(const QString &filePath);
 
+    /// Build a small demo project from repo data and save the documentation
+    /// screenshots (invoked by the --screenshots command line mode).
+    bool captureDocScreenshots(const QString &outputDir);
+
 private slots:
     void newProject();
     void openProjectDialog();

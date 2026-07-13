@@ -88,33 +88,63 @@ double toDoubleFlexible(const QString &token, bool *ok)
 CsvReader::Preview CsvReader::preview(const QByteArray &bytes, int maxRows)
 {
     Preview result;
-    QList<QByteArray> lines = bytes.split('\n');
-    // drop trailing/blank lines for sniffing
-    QList<QByteArray> sample;
-    for (const QByteArray &l : lines) {
-        if (!l.trimmed().isEmpty())
-            sample.append(l.trimmed());
-        if (sample.size() >= maxRows + 1)
+
+    // instrument exports (e.g. Nortek/UBERTONE .dat conversions) may carry
+    // several free-text header lines before the numeric table; find the first
+    // data row by testing whitespace-normalized tokens
+    auto looksNumeric = [](const QByteArray &line) {
+        QString normalized = QString::fromUtf8(line);
+        normalized.replace(QLatin1Char('\t'), QLatin1Char(' '));
+        normalized.replace(QLatin1Char(';'), QLatin1Char(' '));
+        normalized.replace(QLatin1Char(','), QLatin1Char(' '));
+        return isNumericRow(normalized.simplified().split(QLatin1Char(' ')));
+    };
+
+    const QList<QByteArray> allLines = bytes.split('\n');
+    QList<QByteArray> headerBlock;
+    QList<QByteArray> dataSample;
+    int headerLines = 0;
+    int lineNo = 0;
+    for (const QByteArray &raw : allLines) {
+        ++lineNo;
+        const QByteArray line = raw.trimmed();
+        if (line.isEmpty()) {
+            if (dataSample.isEmpty())
+                headerLines = lineNo;
+            continue;
+        }
+        if (dataSample.isEmpty() && !looksNumeric(line)) {
+            headerBlock.append(line);
+            headerLines = lineNo;
+            continue;
+        }
+        dataSample.append(line);
+        if (dataSample.size() >= maxRows + 1)
             break;
     }
-    if (sample.isEmpty())
+    if (dataSample.isEmpty())
         return result;
+    result.headerLines = headerLines;
 
-    result.delimiter = sniffDelimiter(sample);
+    result.delimiter = sniffDelimiter(dataSample);
+    result.columnCount = splitLine(QString::fromUtf8(dataSample.first()), result.delimiter).size();
 
-    const QStringList firstRow = splitLine(QString::fromUtf8(sample.first()), result.delimiter);
-    result.hasHeader = !isNumericRow(firstRow);
-    result.columnCount = firstRow.size();
-
-    if (result.hasHeader) {
-        result.columnNames = firstRow;
-    } else {
+    // use the last header line as column names when it matches the data shape
+    if (!headerBlock.isEmpty()) {
+        const QStringList names =
+            splitLine(QString::fromUtf8(headerBlock.last()), result.delimiter);
+        if (names.size() == result.columnCount) {
+            result.columnNames = names;
+            result.hasHeader = true;
+        }
+    }
+    if (result.columnNames.isEmpty()) {
         for (int i = 0; i < result.columnCount; ++i)
             result.columnNames.append(QStringLiteral("column %1").arg(i + 1));
     }
 
-    for (int i = result.hasHeader ? 1 : 0; i < sample.size() && result.sampleRows.size() < maxRows; ++i)
-        result.sampleRows.append(splitLine(QString::fromUtf8(sample.at(i)), result.delimiter));
+    for (int i = 0; i < dataSample.size() && result.sampleRows.size() < maxRows; ++i)
+        result.sampleRows.append(splitLine(QString::fromUtf8(dataSample.at(i)), result.delimiter));
 
     return result;
 }
@@ -131,15 +161,14 @@ AdvData CsvReader::read(const QByteArray &bytes, const QHash<Role, int> &mapping
 
     QVector<QVector<double>> cols(info.columnCount);
     const QList<QByteArray> lines = bytes.split('\n');
-    bool skipFirst = info.hasHeader;
+    int lineNo = 0;
     for (const QByteArray &rawLine : lines) {
+        ++lineNo;
+        if (lineNo <= info.headerLines)
+            continue; // free-text header block
         const QString line = QString::fromUtf8(rawLine).trimmed();
         if (line.isEmpty())
             continue;
-        if (skipFirst) {
-            skipFirst = false;
-            continue;
-        }
         const QStringList tokens = splitLine(line, info.delimiter);
         for (int c = 0; c < info.columnCount; ++c) {
             if (c < tokens.size()) {

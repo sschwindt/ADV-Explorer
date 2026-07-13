@@ -214,6 +214,27 @@ void TestCore::csvReader()
 
     // file without time column (e.g. plain u v w tables): time is synthesized
     // from the sample index and rescaled with the user-provided frequency
+    // instrument export with free-text header block and CRLF line endings
+    // (as produced by Nortek .adv-to-.dat conversions)
+    const QByteArray headerBlock =
+        "ADV File  : C:\\Users\\lab\\Desktop\\converted\\z0086.adv\r\n"
+        "ADV PROBE : 1\r\n"
+        "ADV VELOCITIES (U, V, W):\r\n"
+        "11.60 -1.00 -1.52\r\n"
+        "24.45 -3.48 -0.68\r\n";
+    const CsvReader::Preview headerPreview = CsvReader::preview(headerBlock);
+    QCOMPARE(headerPreview.headerLines, 3);
+    QCOMPARE(headerPreview.columnCount, 3);
+    QHash<Role, int> headerMapping;
+    headerMapping.insert(Role::U, 0);
+    headerMapping.insert(Role::V, 1);
+    headerMapping.insert(Role::W1, 2);
+    const AdvData headerData = CsvReader::read(headerBlock, headerMapping, &error);
+    QVERIFY2(!headerData.isEmpty(), qPrintable(error));
+    QCOMPARE(headerData.rowCount(), 2);
+    QCOMPARE(headerData.columnByRole(Role::U).first(), 11.60);
+    QCOMPARE(headerData.columnByRole(Role::W1).at(1), -0.68);
+
     const QByteArray noTime = "0.30 -0.09 -0.01\n0.32 -0.11 -0.02\n0.31 -0.10 -0.015\n";
     QHash<Role, int> uvwMapping;
     uvwMapping.insert(Role::U, 0);

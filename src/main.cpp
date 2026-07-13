@@ -30,8 +30,19 @@ int main(int argc, char *argv[])
     MainWindow window;
     window.show();
 
-    // open a project passed on the command line
     const QStringList args = app.arguments();
+
+    // documentation screenshot mode (developer tool):
+    //   QT_QPA_PLATFORM=offscreen adv-explorer --screenshots docs/img
+    const int screenshotArg = args.indexOf(QStringLiteral("--screenshots"));
+    if (screenshotArg >= 0) {
+        const QString outputDir =
+            args.value(screenshotArg + 1, QStringLiteral("docs/img"));
+        app.processEvents();
+        return window.captureDocScreenshots(outputDir) ? 0 : 1;
+    }
+
+    // open a project passed on the command line
     if (args.size() > 1 && args.at(1).endsWith(QStringLiteral(".advProj")))
         window.openProject(args.at(1));
 
