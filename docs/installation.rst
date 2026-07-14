@@ -26,10 +26,8 @@ Windows 10/11
 .. note::
 
    Windows SmartScreen may warn about an unrecognized app the first time.
-   Click *More info* and then *Run anyway*. This happens when the executable
-   is not code-signed (or its certificate has not yet built up reputation),
-   not because anything is wrong with it. See the code signing section in
-   :doc:`developer` for how releases can be signed.
+   Click *More info* and then *Run anyway*. This happens because the
+   executable is not code-signed, not because anything is wrong with it.
 
 Linux
 -----
