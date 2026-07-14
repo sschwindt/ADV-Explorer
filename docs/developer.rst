@@ -79,6 +79,37 @@ Releases and continuous integration
 
 Pushing a tag ``v*`` attaches both packages to a GitHub release.
 
+Windows code signing
+--------------------
+
+The Windows job contains an optional *Sign executable* step that signs
+``adv-explorer.exe`` with ``signtool`` (SHA-256 digest plus RFC 3161
+timestamp) before packaging. It runs only when two repository secrets are
+configured under *Settings > Secrets and variables > Actions*:
+
+* ``WINDOWS_CERT_PFX_BASE64``: the code signing certificate with private key
+  as a base64-encoded PFX/PKCS#12 file, for example generated with
+  ``base64 -w0 certificate.pfx``.
+* ``WINDOWS_CERT_PASSWORD``: the password of the PFX file.
+
+Without these secrets, the step is skipped and the release stays unsigned,
+which makes Windows SmartScreen show its *unrecognized app* warning.
+
+A certificate must be obtained from a certificate authority; identity
+validation is part of the process and cannot be automated:
+
+* `SignPath.io <https://about.signpath.io/product/open-source>`_ issues free
+  code signing for open source projects (application required; signing then
+  runs through their service or a certificate they provide).
+* `Azure Trusted Signing <https://azure.microsoft.com/en-us/products/trusted-signing>`_
+  is a low-cost subscription that supports individual developers.
+* Classic OV/EV code signing certificates are sold by CAs such as Sectigo,
+  DigiCert, or GlobalSign.
+
+Note that even with a valid signature, SmartScreen reputation for a new
+certificate builds up over time; only certificates with established
+reputation (or EV validation) suppress the warning immediately.
+
 Documentation screenshots
 -------------------------
 

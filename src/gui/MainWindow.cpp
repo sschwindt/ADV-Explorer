@@ -73,8 +73,10 @@ MainWindow::MainWindow(QWidget *parent)
     auto *splitter = new QSplitter(Qt::Vertical, this);
     splitter->addWidget(m_flumeView);
     splitter->addWidget(m_tabs);
-    splitter->setStretchFactor(0, 1);
-    splitter->setStretchFactor(1, 2);
+    // flume view gets 2/5 of the height (20% more than the earlier 1/3)
+    splitter->setStretchFactor(0, 2);
+    splitter->setStretchFactor(1, 3);
+    splitter->setSizes({2 * height() / 5, 3 * height() / 5});
     setCentralWidget(splitter);
 
     buildMenus();

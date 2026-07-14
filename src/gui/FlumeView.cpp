@@ -17,6 +17,9 @@
 #include <QMouseEvent>
 #include <QVBoxLayout>
 
+#include <algorithm>
+#include <cmath>
+
 using adv::MeasurementPoint;
 using adv::ProjectModel;
 
@@ -25,18 +28,26 @@ namespace {
 // scene units: 1 m = 100 scene units; y axis flipped (screen y is down)
 constexpr double kScale = 100.0;
 constexpr double kMarkerRadius = 5.0; // scene units
-
-QPointF toScene(double x, double y)
-{
-    return QPointF(x * kScale, -y * kScale);
-}
-
-QPointF fromScene(const QPointF &scenePos)
-{
-    return QPointF(scenePos.x() / kScale, -scenePos.y() / kScale);
-}
+constexpr double kYMarginFrac = 0.05; // top/bottom margin, fraction of the view height
 
 } // namespace
+
+QPointF FlumeView::toScene(double x, double y) const
+{
+    return QPointF(x * kScale, -y * kScale * m_yStretch);
+}
+
+QPointF FlumeView::fromScene(const QPointF &scenePos) const
+{
+    return QPointF(scenePos.x() / kScale, -scenePos.y() / (kScale * m_yStretch));
+}
+
+double FlumeView::xMargin() const
+{
+    // keeps the coordinate axes (the x axis starts at -0.08*width) and a
+    // border visible on both sides
+    return std::max(0.03 * flumeLength(), 0.12 * flumeWidth());
+}
 
 FlumeView::FlumeView(ProjectModel *model, QWidget *parent)
     : QWidget(parent)
@@ -126,9 +137,12 @@ void FlumeView::drawFlume()
     auto *flowLabel = m_scene->addSimpleText(tr("flow direction"));
     flowLabel->setBrush(QColor(70, 100, 140));
     QFont labelFont = flowLabel->font();
-    labelFont.setPointSizeF(width * kScale * 0.045);
+    // scale labels with the drawn (stretched) flume width, but never so large
+    // that they would overflow the flume length
+    labelFont.setPointSizeF(std::min(0.045 * width * m_yStretch, 0.05 * length) * kScale);
     flowLabel->setFont(labelFont);
-    flowLabel->setPos(toScene(length * 0.42, -width * 0.05));
+    // keep the label below the arrow so centerline markers do not cover it
+    flowLabel->setPos(toScene(length * 0.42, -width * 0.2));
     flowLabel->setZValue(1);
 
     // coordinate origin at the center of the inlet (x=0, y=0)
@@ -163,6 +177,12 @@ void FlumeView::drawFlume()
 
 void FlumeView::rebuild()
 {
+    redrawScene();
+    fitView();
+}
+
+void FlumeView::redrawScene()
+{
     m_scene->clear();
     drawFlume();
 
@@ -187,16 +207,36 @@ void FlumeView::rebuild()
                                         : QString()));
         marker->setCursor(Qt::PointingHandCursor);
     }
-
-    fitView();
 }
 
 void FlumeView::fitView()
 {
-    const double margin = 0.06 * flumeLength() * kScale;
-    QRectF rect(toScene(0.0, flumeWidth() / 2.0), toScene(flumeLength(), -flumeWidth() / 2.0));
-    m_view->setSceneRect(rect.adjusted(-margin, -margin, margin, margin));
-    m_view->fitInView(m_view->sceneRect(), Qt::KeepAspectRatio);
+    const QSize viewport = m_view->viewport()->size();
+    if (viewport.width() < 10 || viewport.height() < 10)
+        return;
+
+    const double length = flumeLength();
+    const double width = flumeWidth();
+
+    // choose the vertical exaggeration so that the flume (plus margins) fills
+    // the whole viewport: the flume length always spans the full view width
+    // and the drawn flume width fills the view height; the margins never fall
+    // below the marker size so edge markers and the axes stay fully visible
+    const double markerOverhang = kMarkerRadius + 2.0;
+    const double mx = std::max(xMargin() * kScale, markerOverhang);
+    const double sceneWidth = length * kScale + 2.0 * mx;
+    const double sceneHeight = sceneWidth * viewport.height() / viewport.width();
+    const double my = std::max(kYMarginFrac * sceneHeight, markerOverhang);
+    const double stretch = (sceneHeight - 2.0 * my) / (width * kScale);
+    const double clamped = std::clamp(stretch, 0.05, 100.0);
+    if (std::fabs(clamped - m_yStretch) > 1e-3 * clamped) {
+        m_yStretch = clamped;
+        redrawScene();
+    }
+
+    QRectF rect(toScene(0.0, width / 2.0), toScene(length, -width / 2.0));
+    m_view->setSceneRect(rect.adjusted(-mx, -my, mx, my));
+    m_view->fitInView(m_view->sceneRect(), Qt::IgnoreAspectRatio);
 }
 
 bool FlumeView::eventFilter(QObject *watched, QEvent *event)

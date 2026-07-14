@@ -13,16 +13,21 @@ analysis tabs (bottom): *Time series* and *Vertical profiles*.
 The flume coordinate system
 ---------------------------
 
-The flume is drawn in a 1:5 aspect ratio with the flow direction from left to
-right. The coordinate origin sits at the **center of the inlet**:
+The flume drawing always fills the available window area: the flume length
+spans the full window width and the flume width is stretched vertically to
+fill the height of the flume pane (drag the splitter between the flume and
+the analysis tabs to resize it). The flow direction is from left to right and
+the coordinate origin, drawn as a red cross, sits at the **center of the
+inlet**:
 
 * ``x`` points downstream (m),
 * ``y`` points toward the right bank; the orographic left bank has negative
   y values,
 * ``z`` points upward from the flume bottom (m).
 
-Set the real flume length and width in the toolbar above the drawing; markers
-scale accordingly.
+Set the real flume length and width in the toolbar above the drawing; clicked
+positions and markers always map to these real dimensions, regardless of how
+the drawing is stretched on screen.
 
 Defining measurement points
 ---------------------------
