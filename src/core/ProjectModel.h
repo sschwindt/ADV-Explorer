@@ -6,6 +6,7 @@
 #pragma once
 
 #include "MeasurementPoint.h"
+#include "ProjectSettings.h"
 #include "Rotation.h"
 
 #include <QHash>
@@ -45,6 +46,23 @@ public:
     RotationAngles correction(const QString &xyKey) const;
     void setCorrection(const QString &xyKey, const RotationAngles &angles);
 
+    // --- mode and georeferencing ---------------------------------------------
+    /// Lab (flume) or field (georeferenced river) campaign; Lab by default.
+    Mode mode() const { return m_mode; }
+    void setMode(Mode mode);
+
+    /// EPSG code the x-y coordinates are expressed in when in field mode.
+    /// 0 means "not chosen yet"; setting an unsupported code fails and keeps
+    /// the previous value.
+    int epsg() const { return m_epsg; }
+    bool setEpsg(int epsg);
+
+    /// Surveyed cross sections, used to place stations by chainage and to draw
+    /// the section on the map.
+    const QList<CrossSection> &crossSections() const { return m_crossSections; }
+    void setCrossSections(const QList<CrossSection> &sections);
+    void addCrossSection(const CrossSection &section);
+
     // --- processing -----------------------------------------------------------
     /// Processed (windowed, despiked, rotated) series; cached per point.
     std::shared_ptr<const ProcessedSeries> processed(const QUuid &id) const;
@@ -67,6 +85,9 @@ signals:
     void pointRemoved(const QUuid &id);
     void correctionChanged(const QString &xyKey);
     void modelReset();
+    void modeChanged(adv::Mode mode);
+    void crsChanged(int epsg);
+    void crossSectionsChanged();
 
 private:
     void invalidateCache(const QUuid &id);
@@ -78,6 +99,9 @@ private:
     Role m_wRole = Role::W1;
     int m_cpuCount = 1;
     QJsonObject m_plotSettings;
+    Mode m_mode = Mode::Lab;
+    int m_epsg = 0;
+    QList<CrossSection> m_crossSections;
 };
 
 } // namespace adv

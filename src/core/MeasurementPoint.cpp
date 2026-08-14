@@ -15,6 +15,35 @@ QString MeasurementPoint::label() const
         .arg(x, 0, 'f', 4).arg(y, 0, 'f', 4).arg(z, 0, 'f', 4);
 }
 
+QString pointLabel(const MeasurementPoint &point, Mode mode)
+{
+    if (mode != Mode::Field)
+        return point.label();
+
+    // millimetres are already beyond what a field survey resolves, and the
+    // station name carries more meaning than the coordinates do
+    QString label = QStringLiteral("E=%1 N=%2 z=%3 m")
+                        .arg(point.x, 0, 'f', 2)
+                        .arg(point.y, 0, 'f', 2)
+                        .arg(point.z, 0, 'f', 3);
+    if (!point.stationName.isEmpty())
+        label = point.stationName + QStringLiteral(" | ") + label;
+    return label;
+}
+
+QString profileLabel(const MeasurementPoint &point, Mode mode)
+{
+    if (mode != Mode::Field)
+        return point.xyKey();
+
+    QString label = point.stationName.isEmpty()
+                        ? QStringLiteral("E=%1 N=%2").arg(point.x, 0, 'f', 2).arg(point.y, 0, 'f', 2)
+                        : point.stationName;
+    if (std::isfinite(point.chainage))
+        label += QStringLiteral(" (%1 m)").arg(point.chainage, 0, 'f', 2);
+    return label;
+}
+
 QString MeasurementPoint::xyKey() const
 {
     return makeXyKey(x, y);

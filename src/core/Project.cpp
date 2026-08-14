@@ -5,11 +5,14 @@
  */
 #include "Project.h"
 
+#include "Crs.h"
 #include "CsvReader.h"
+#include "FormatRegistry.h"
 #include "ProjectModel.h"
 #include "VnaReader.h"
 
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -21,7 +24,10 @@ namespace project {
 
 namespace {
 
-constexpr int kFormatVersion = 1;
+/// 1: original layout.
+/// 2: adds the campaign mode, the project coordinate system and cross sections.
+///    Points are unchanged, so version 1 files load without any migration.
+constexpr int kFormatVersion = 2;
 
 // NaN-safe number <-> JSON conversion (JSON has no NaN)
 QJsonValue toJson(double value)
@@ -80,6 +86,9 @@ QJsonObject pointToJson(const MeasurementPoint &p)
     o[QStringLiteral("tStart")] = toJson(p.tStart);
     o[QStringLiteral("tEnd")] = toJson(p.tEnd);
     o[QStringLiteral("despike")] = despikeToJson(p.despike);
+    if (!p.stationName.isEmpty())
+        o[QStringLiteral("stationName")] = p.stationName;
+    o[QStringLiteral("chainage")] = toJson(p.chainage);
 
     QJsonObject file;
     file[QStringLiteral("name")] = p.data.sourceFileName();
@@ -108,6 +117,8 @@ bool pointFromJson(const QJsonObject &o, MeasurementPoint *p, QString *errorStri
     p->tStart = fromJson(o[QStringLiteral("tStart")]);
     p->tEnd = fromJson(o[QStringLiteral("tEnd")]);
     p->despike = despikeFromJson(o[QStringLiteral("despike")].toObject());
+    p->stationName = o[QStringLiteral("stationName")].toString();
+    p->chainage = fromJson(o[QStringLiteral("chainage")]);
 
     const QJsonObject file = o[QStringLiteral("file")].toObject();
     const QByteArray raw = qUncompress(
@@ -119,16 +130,21 @@ bool pointFromJson(const QJsonObject &o, MeasurementPoint *p, QString *errorStri
         return false;
     }
     const QString format = file[QStringLiteral("format")].toString(QStringLiteral("vna"));
-    QString readError;
-    if (format == QStringLiteral("csv")) {
-        QHash<Role, int> mapping;
-        const QJsonObject mappingObj = file[QStringLiteral("mapping")].toObject();
-        for (auto it = mappingObj.constBegin(); it != mappingObj.constEnd(); ++it)
-            mapping.insert(roleFromName(it.key()), it.value().toInt());
-        p->data = CsvReader::read(raw, mapping, &readError);
-    } else {
-        p->data = VnaReader::read(raw, &readError);
+    const FileFormat *reader = formats::byId(format);
+    if (!reader) {
+        if (errorString)
+            *errorString = QStringLiteral("Point %1 was stored in the unknown data format \"%2\".")
+                               .arg(p->label(), format);
+        return false;
     }
+
+    QHash<Role, int> mapping;
+    const QJsonObject mappingObj = file[QStringLiteral("mapping")].toObject();
+    for (auto it = mappingObj.constBegin(); it != mappingObj.constEnd(); ++it)
+        mapping.insert(roleFromName(it.key()), it.value().toInt());
+
+    QString readError;
+    p->data = reader->read(raw, mapping, &readError);
     if (p->data.isEmpty()) {
         if (errorString)
             *errorString = QStringLiteral("Embedded data of point %1 cannot be parsed: %2")
@@ -142,6 +158,46 @@ bool pointFromJson(const QJsonObject &o, MeasurementPoint *p, QString *errorStri
     return true;
 }
 
+QJsonObject crossSectionToJson(const CrossSection &section)
+{
+    QJsonObject o;
+    o[QStringLiteral("name")] = section.name;
+    o[QStringLiteral("leftX")] = toJson(section.leftX);
+    o[QStringLiteral("leftY")] = toJson(section.leftY);
+    o[QStringLiteral("rightX")] = toJson(section.rightX);
+    o[QStringLiteral("rightY")] = toJson(section.rightY);
+    o[QStringLiteral("leftChainage")] = toJson(section.leftChainage);
+    o[QStringLiteral("rightChainage")] = toJson(section.rightChainage);
+
+    QJsonArray bed;
+    for (const QPointF &node : section.bed) {
+        QJsonObject b;
+        b[QStringLiteral("chainage")] = node.x();
+        b[QStringLiteral("depth")] = node.y();
+        bed.append(b);
+    }
+    o[QStringLiteral("bed")] = bed;
+    return o;
+}
+
+CrossSection crossSectionFromJson(const QJsonObject &o)
+{
+    CrossSection section;
+    section.name = o[QStringLiteral("name")].toString();
+    section.leftX = fromJson(o[QStringLiteral("leftX")]);
+    section.leftY = fromJson(o[QStringLiteral("leftY")]);
+    section.rightX = fromJson(o[QStringLiteral("rightX")]);
+    section.rightY = fromJson(o[QStringLiteral("rightY")]);
+    section.leftChainage = fromJson(o[QStringLiteral("leftChainage")]);
+    section.rightChainage = fromJson(o[QStringLiteral("rightChainage")]);
+    for (const QJsonValue &value : o[QStringLiteral("bed")].toArray()) {
+        const QJsonObject b = value.toObject();
+        section.bed.append(QPointF(b[QStringLiteral("chainage")].toDouble(),
+                                   b[QStringLiteral("depth")].toDouble()));
+    }
+    return section;
+}
+
 } // namespace
 
 bool save(const ProjectModel &model, const QString &filePath, QString *errorString)
@@ -153,6 +209,13 @@ bool save(const ProjectModel &model, const QString &filePath, QString *errorStri
         model.wRole() == Role::W2 ? QStringLiteral("w2") : QStringLiteral("w1");
     root[QStringLiteral("cpuCount")] = model.cpuCount();
     root[QStringLiteral("plotSettings")] = model.plotSettings();
+    root[QStringLiteral("mode")] = modeId(model.mode());
+    root[QStringLiteral("epsg")] = model.epsg();
+
+    QJsonArray sections;
+    for (const CrossSection &section : model.crossSections())
+        sections.append(crossSectionToJson(section));
+    root[QStringLiteral("crossSections")] = sections;
 
     QJsonArray corrections;
     for (const QString &key : model.profileKeys()) {
@@ -183,7 +246,7 @@ bool save(const ProjectModel &model, const QString &filePath, QString *errorStri
     return true;
 }
 
-bool load(ProjectModel *model, const QString &filePath, QString *errorString)
+bool load(ProjectModel *model, const QString &filePath, QString *errorString, QString *warning)
 {
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly)) {
@@ -205,8 +268,38 @@ bool load(ProjectModel *model, const QString &filePath, QString *errorString)
             *errorString = QStringLiteral("Not an ADV-Explorer project file.");
         return false;
     }
+    // the version was written but never checked before format 2, so a file from
+    // a newer build used to load silently and partially
+    const int version = root[QStringLiteral("formatVersion")].toInt(1);
+    if (version > kFormatVersion) {
+        if (errorString)
+            *errorString = QStringLiteral(
+                               "%1 was written by a newer version of ADV-Explorer "
+                               "(project format %2, this build reads up to %3).")
+                               .arg(QFileInfo(filePath).fileName())
+                               .arg(version).arg(kFormatVersion);
+        return false;
+    }
 
     model->clear();
+    // absent in version 1 files, which are always laboratory projects
+    model->setMode(modeFromId(root[QStringLiteral("mode")].toString()));
+    const int epsg = root[QStringLiteral("epsg")].toInt(0);
+    if (!model->setEpsg(epsg)) {
+        // an unsupported system must not make the whole project unopenable
+        model->setEpsg(0);
+        model->setMode(Mode::Lab);
+        if (warning)
+            *warning = QStringLiteral(
+                           "EPSG:%1 is not supported, so the project was opened in "
+                           "laboratory mode. %2")
+                           .arg(epsg).arg(crs::supportedRangesText());
+    }
+
+    QList<CrossSection> sections;
+    for (const QJsonValue &value : root[QStringLiteral("crossSections")].toArray())
+        sections.append(crossSectionFromJson(value.toObject()));
+    model->setCrossSections(sections);
     model->setWRole(root[QStringLiteral("wComponent")].toString() == QStringLiteral("w2")
                         ? Role::W2 : Role::W1);
     model->setCpuCount(root[QStringLiteral("cpuCount")].toInt(model->cpuCount()));

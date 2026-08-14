@@ -1,0 +1,36 @@
+﻿Desktop_Software_Build_Version,2.0
+Number_Of_Stations;;24
+Start_Time;;2025-09-30 13:16:24Z
+End_Time;;2025-09-30 14:48:10Z
+Local_Time_UTC_Offset_Hours;;1,0000
+Handheld_Serial_Number;;FT2H2004008
+Handheld_CPU_Serial_Number;;00A090D1
+Handheld_Boards_Info;;n/a
+Handheld_Software_Version;;2.0
+Handheld_Operating_System;;Microsoft Windows CE 6.0.0/.NET 3.5.10010.0
+Watstange;;TopSetting
+ADV_System_Frequency;Hz;10000000,00
+ADV_Serial_Number;;FT2P2028002
+ADV_Firmware_Version;;1.30
+ADV_Number_Of_Beams;;3
+ADV_Noise_Level;cnts;556;543;595
+ADV_Peak_Position;m;0,117;0,117;0,117
+ADV_Peak_Level;dB;37,938;39,781;40,944
+Configuration_Data_Collection_Mode;;Discharge
+Configuration_Averaging_Time;s;30
+Configuration_Sampling_Rate;Hz;2
+Configuration_Salinity;PSS;0
+Configuration_Temperature;° C;NaN
+Configuration_Sound_Speed;m/s;NaN
+Configuration_Mounting_Correction;%;0
+Configuration_Quality_Control_SNR_Threshold;dB;10
+Configuration_Quality_Control_Std_Error_Threshold;m/s;0,01
+Configuration_Quality_Control_Spike_Threshold;%;10
+Configuration_Quality_Control_Velocity_Angle_For_Warning;deg;20
+Configuration_Quality_Control_Tilt_Angle_For_Warning;deg;5
+Configuration_Discharge_Equation;;MidSection
+Configuration_Discharge_Reference;;Rated
+Configuration_Discharge_Quality_Control_Max_Station_Discharge_For_Warning;%;10
+Configuration_Discharge_Quality_Control_Max_Depth_Change_For_Warning;%;50
+Configuration_Discharge_Quality_Control_Max_Spacing_Change_For_Warning;%;100
+Configuration_Discharge_Velocity_Methods;;0,2/0,6/0,8;Kreps;5-Punkt;6-Punkt;Mehrpunkt

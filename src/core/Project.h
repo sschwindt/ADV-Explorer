@@ -20,7 +20,12 @@ class ProjectModel;
 namespace project {
 
 bool save(const ProjectModel &model, const QString &filePath, QString *errorString = nullptr);
-bool load(ProjectModel *model, const QString &filePath, QString *errorString = nullptr);
+
+/// Load a project. `warning` receives a message for problems that were
+/// recovered from rather than fatal, such as a stored coordinate system this
+/// build cannot handle; the project still opens in that case.
+bool load(ProjectModel *model, const QString &filePath, QString *errorString = nullptr,
+          QString *warning = nullptr);
 
 QString fileExtension();   // "advProj"
 QString fileFilter();      // for QFileDialog

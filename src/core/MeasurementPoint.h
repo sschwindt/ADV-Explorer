@@ -8,6 +8,7 @@
 #include "AdvData.h"
 #include "Despike.h"
 #include "FlowStats.h"
+#include "ProjectSettings.h"
 #include "Rotation.h"
 
 #include <QString>
@@ -26,6 +27,11 @@ struct MeasurementPoint {
     double tStart = nan();     ///< analysis window start (s); NaN = record start
     double tEnd = nan();       ///< analysis window end (s); NaN = record end
 
+    /// Where a field point came from: the name of its cross-section station and
+    /// its chainage along the tape. Empty and NaN for laboratory points.
+    QString stationName;
+    double chainage = nan();
+
     AdvData data;
     DespikeConfig despike;
 
@@ -35,6 +41,14 @@ struct MeasurementPoint {
     QString xyKey() const;
     static QString makeXyKey(double x, double y);
 };
+
+/// Label for display, which differs by mode: flume coordinates are small numbers
+/// around an origin, while projected coordinates are six- and seven-digit
+/// eastings and northings that would be unreadable at four decimals.
+QString pointLabel(const MeasurementPoint &point, Mode mode);
+
+/// Label of the vertical profile a point belongs to.
+QString profileLabel(const MeasurementPoint &point, Mode mode);
 
 /// Fully processed series of one point: time window, despiking and rotation
 /// correction applied.

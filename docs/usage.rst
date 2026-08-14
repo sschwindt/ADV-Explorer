@@ -148,4 +148,131 @@ Processing settings
 
 The *Processing* menu sets how many CPU cores the application may use (never
 more than physically available) and whether the first (w1) or second (w2)
-vertical velocity beam feeds the W statistics.
+vertical velocity beam feeds the W statistics. The w2 choice is unavailable in
+field mode, where the probe has a single vertical component.
+
+Field mode: FlowTracker2 river surveys
+--------------------------------------
+
+ADV-Explorer handles two kinds of campaign, switched under *Project* and saved
+with the project. **Lab (Vectrino)** is the default and behaves exactly as
+described above. **Field (FlowTracker)** analyses SonTek/Xylem FlowTracker2
+wading measurements on a real map.
+
+.. figure:: img/field-mode.png
+   :alt: Field mode with measurement stations along a cross section on a map
+
+   *Field mode: stations placed along a surveyed cross section. The badge on
+   each marker counts the measurement depths of that vertical. The basemap is
+   switched off here, so this is the offline fallback with its coordinate grid
+   and scale bar.*
+
+What changes in field mode
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* The flume panel becomes a slippy map with an OpenStreetMap basemap, a
+  coordinate grid, a scale bar and a cursor readout.
+* Point x and y are easting and northing in a project coordinate system, chosen
+  under *Project > Coordinate system*. The z coordinate keeps exactly the
+  meaning it has in the flume: height above the bed, in metres, so vertical
+  profiles and the z/h axis work unchanged.
+* Turbulence quantities are relabelled, for the reasons given below.
+
+Choosing a coordinate system
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The projections are built into the application, so no PROJ or GDAL installation
+is needed. Supported systems are:
+
+* ``EPSG:4326`` WGS 84 geographic and ``EPSG:3857`` Pseudo-Mercator
+* ``EPSG:32601`` to ``32660`` and ``32701`` to ``32760``, WGS 84 UTM
+* ``EPSG:25828`` to ``25838``, ETRS89 UTM (including 25832 for southern Germany)
+* ``EPSG:31466`` to ``31469``, DHDN 3-degree Gauss-Krueger
+
+ETRS89 is treated as identical to WGS 84. The two drift apart by a few
+decimetres, which shifts the whole survey uniformly against the basemap and does
+not distort the geometry between measurement points. Gauss-Krueger additionally
+needs a datum change, which is done with one countrywide transformation and is
+accurate to roughly a metre; the coordinate dialog says so when you pick one.
+Codes outside these ranges are refused with the supported ranges spelled out,
+rather than silently accepted and misplaced.
+
+Importing a survey
+~~~~~~~~~~~~~~~~~~
+
+*Import > Import FlowTracker2 survey* reads a whole cross section at once,
+because that is what one FlowTracker2 file holds: a row of verticals along a
+tape, each sampled at one, two or three fractional depths.
+
+Preferred input is the instrument's own ``.ft`` file. It carries the raw
+samples, per-beam SNR and correlation, the height of each measurement above the
+bed, and the sample indices the instrument flagged as spikes. Keeping those
+flags is what makes ADV-Explorer reproduce the mean velocities and standard
+errors the instrument itself reports.
+
+The ``.ft.dat.csv`` and ``.ft.sum.csv`` exports work as a fallback. They are read
+by column position, never by header text, because FlowTracker2 translates its
+headers into the language of its user interface. They contain no correlation
+columns and no spike indices, and they omit the bank stations, so results differ
+slightly from the ``.ft`` file and the cross-section ends have to be typed in.
+
+Positioning the stations
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+FlowTracker2 records a chainage along the tape, not a coordinate, so the import
+wizard asks where the tape was:
+
+* **Along a cross-section line**: give the coordinates of the two ends of the
+  tape. Stations are then placed by interpolating their chainage along that
+  line. The bank and edge stations of the survey supply the chainages of the two
+  ends automatically, which is the reason they are read even though they hold no
+  velocity data. The wizard warns when the line length and the tape length
+  disagree by more than two percent.
+* **From surveyed positions**: read the positions from a GeoPackage point layer
+  or a delimited text file with easting and northing columns, matched to the
+  stations in order. The wizard refuses a GeoPackage whose coordinate system
+  differs from the project one instead of mixing them silently.
+
+The handheld GPS fix stored in the file is shown, but it is used only to centre
+the map. Its scatter is several metres, considerably more than the spacing
+between stations, so it cannot position them.
+
+Why TKE is called a proxy here
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A FlowTracker2 point is roughly 60 samples taken at 2 Hz over 30 s. That
+resolves nothing above 1 Hz and averages over half a minute, so the variance it
+yields is not the turbulent kinetic energy a laboratory record measures. It is
+still a useful relative indicator between stations of the same survey, which is
+why it is computed rather than hidden, but it is labelled **TKE proxy**
+everywhere, including in the exported workbooks, so field and laboratory numbers
+are never compared as though they were the same quantity.
+
+For the same reason the dissipation rate is reported as *n/a (sampling rate too
+low)*. Estimating it needs a resolved inertial subrange and at least 256 samples
+per spectral segment, and a FlowTracker2 point provides neither.
+
+Despiking defaults also differ. The instrument reports a correlation score on a
+0 to 1 scale, rescaled here to 0 to 100 for consistency; its observed range is
+about 5 to 72 with a median near 35, so the Vectrino default threshold of 70
+would reject nearly every sample. Field imports therefore start with the
+correlation filter switched off and the SNR filter set to the threshold recorded
+in the file itself.
+
+Basemap and offline use
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Tiles come from ``https://tile.openstreetmap.org`` by default. ADV-Explorer
+follows the OpenStreetMap Foundation tile usage policy: it identifies itself, it
+requests only the tiles actually on screen with a small number of requests in
+flight, it caches them on disk between sessions, and it always shows the
+attribution, which is included in exported images as well.
+
+Turn *Online basemap* off, or simply work without a connection, and the map
+falls back to a coordinate grid with a scale bar. Panning, zooming, placing and
+editing points all keep working, which matters when the survey is being reviewed
+in the field. If a tile server refuses requests, the application stops asking for
+the rest of the session instead of retrying.
+
+Map data is (c) OpenStreetMap contributors, available under the Open Database
+License.

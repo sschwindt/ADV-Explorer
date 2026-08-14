@@ -5,12 +5,16 @@
  */
 #pragma once
 
+#include "core/ProjectSettings.h"
+
 #include <QMainWindow>
 #include <QUuid>
 
-class FlumeView;
 class PlotFrame;
 class ProfileFrame;
+class SiteView;
+class QAction;
+class QSplitter;
 class QTabWidget;
 class QVBoxLayout;
 
@@ -36,8 +40,11 @@ private slots:
     bool saveProject();
     bool saveProjectAs();
     void importFiles();
+    void importFlowTrackerSurvey();
+    void chooseProjectCrs();
     void exportCsv();
     void exportPng();
+    void exportMapPng();
     void exportPointStats();
     void exportProfileStats();
     void addSecondPlotFrame();
@@ -48,16 +55,25 @@ private slots:
 
 private:
     void buildMenus();
+    /// Put the site view matching the campaign mode into the splitter.
+    void applyMode(adv::Mode mode);
     void collectPlotSettings();
     void applyPlotSettings();
     bool writeProject(const QString &filePath);
 
     adv::ProjectModel *m_model;
-    FlumeView *m_flumeView;
+    SiteView *m_siteView = nullptr;
+    QSplitter *m_splitter = nullptr;
     QTabWidget *m_tabs;
     QVBoxLayout *m_plotColumn;
     QList<PlotFrame *> m_plotFrames;
     ProfileFrame *m_profileFrame;
     QString m_projectPath;
     QAction *m_removeFrameAction = nullptr;
+    QAction *m_labModeAction = nullptr;
+    QAction *m_fieldModeAction = nullptr;
+    QAction *m_crsAction = nullptr;
+    QAction *m_w2Action = nullptr;
+    QAction *m_importFtAction = nullptr;
+    QAction *m_exportMapAction = nullptr;
 };

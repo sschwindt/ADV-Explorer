@@ -42,8 +42,11 @@ int main(int argc, char *argv[])
         return window.captureDocScreenshots(outputDir) ? 0 : 1;
     }
 
-    // open a project passed on the command line
-    if (args.size() > 1 && args.at(1).endsWith(QStringLiteral(".advProj")))
+    // open a project passed on the command line; the comparison is case
+    // insensitive because Windows file systems are, and a file association
+    // hands the path back in whatever case it was stored with
+    if (args.size() > 1
+        && args.at(1).endsWith(QStringLiteral(".advProj"), Qt::CaseInsensitive))
         window.openProject(args.at(1));
 
     return app.exec();

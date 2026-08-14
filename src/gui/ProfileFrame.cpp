@@ -6,6 +6,7 @@
 #include "ProfileFrame.h"
 
 #include "core/ProjectModel.h"
+#include "core/StatsLabels.h"
 
 #include <qcustomplot.h>
 
@@ -184,7 +185,9 @@ ProfileFrame::ProfileFrame(ProjectModel *model, QWidget *parent)
 
 QString ProfileFrame::currentProfileKey() const
 {
-    return m_profileCombo->currentText();
+    // the combo shows a readable label; the x-y key it identifies is user data
+    const QVariant key = m_profileCombo->currentData();
+    return key.isValid() ? key.toString() : m_profileCombo->currentText();
 }
 
 void ProfileFrame::refresh()
@@ -192,8 +195,14 @@ void ProfileFrame::refresh()
     const QString current = currentProfileKey();
     m_profileCombo->blockSignals(true);
     m_profileCombo->clear();
-    m_profileCombo->addItems(m_model->profileKeys());
-    const int index = m_profileCombo->findText(current);
+    for (const QString &key : m_model->profileKeys()) {
+        // the raw key is a pair of coordinates, which is unreadable for six-
+        // and seven-digit eastings; show the station instead when there is one
+        const QList<QUuid> ids = m_model->profilePoints(key);
+        const MeasurementPoint *first = ids.isEmpty() ? nullptr : m_model->point(ids.first());
+        m_profileCombo->addItem(first ? profileLabel(*first, m_model->mode()) : key, key);
+    }
+    const int index = m_profileCombo->findData(current);
     m_profileCombo->setCurrentIndex(index >= 0 ? index : 0);
     m_profileCombo->blockSignals(false);
     rebuildPlot();
@@ -273,8 +282,12 @@ void ProfileFrame::rebuildPlot()
                               formatNumber(s.w.kurtosis));
         statsText += tr("  u'v'=%1 u'w'=%2 v'w'=%3 m^2/s^2\n")
                          .arg(formatNumber(s.uv), formatNumber(s.uw), formatNumber(s.vw));
-        statsText += tr("  TKE=%1 m^2/s^2  eps=%2 m^2/s^3\n\n")
-                         .arg(formatNumber(s.tke), formatNumber(s.eps));
+        // a 60-sample record at 2 Hz yields a variance, not a resolved TKE, and
+        // no dissipation rate at all; say so instead of printing a bare NaN
+        statsText += tr("  n=%1\n").arg(s.u.n);
+        statsText += tr("  %1=%2 m^2/s^2  eps=%3\n\n")
+                         .arg(labels::tke(m_model->mode()), formatNumber(s.tke),
+                              labels::epsText(s.eps, s.u.n, series->samplingFrequency));
     }
 
     for (int c = 0; c < components.size(); ++c) {

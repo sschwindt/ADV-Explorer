@@ -6,6 +6,7 @@
 #include "PointWizard.h"
 
 #include "core/CsvReader.h"
+#include "core/FormatRegistry.h"
 #include "core/VnaReader.h"
 
 #include <QCheckBox>
@@ -32,10 +33,12 @@ using namespace adv;
 
 namespace {
 
-bool isCsvFile(const QString &filePath)
+/// True when the format needs the user to say which column holds which role.
+/// Fixed-layout formats (Vectrino, FlowTracker2) map themselves.
+bool needsColumnMapping(const QString &filePath)
 {
-    const QString suffix = QFileInfo(filePath).suffix().toLower();
-    return suffix != QStringLiteral("vna");
+    const FileFormat *format = formats::byFilePath(filePath);
+    return format && format->needsColumnMapping;
 }
 
 QDoubleSpinBox *makeCoordinateSpin(QWidget *parent)
@@ -258,8 +261,7 @@ void PointWizard::loadFromPoint()
 void PointWizard::browseFile()
 {
     const QString filePath = QFileDialog::getOpenFileName(
-        this, tr("Select ADV measurement file"), QString(),
-        tr("ADV data (*.vna *.csv *.txt *.dat);;All files (*)"));
+        this, tr("Select ADV measurement file"), QString(), formats::openFileFilter());
     if (filePath.isEmpty())
         return;
     m_fileEdit->setText(filePath);
@@ -269,7 +271,7 @@ void PointWizard::browseFile()
 void PointWizard::updateMappingTable()
 {
     const QString filePath = m_fileEdit->text();
-    if (filePath.isEmpty() || !isCsvFile(filePath) || !QFile::exists(filePath)) {
+    if (filePath.isEmpty() || !needsColumnMapping(filePath) || !QFile::exists(filePath)) {
         m_mappingTable->setVisible(false);
         return;
     }
@@ -329,9 +331,22 @@ bool PointWizard::loadDataFile(QString *errorString)
         *errorString = tr("File %1 does not exist.").arg(filePath);
         return false;
     }
-    AdvData data;
-    if (isCsvFile(filePath)) {
-        QHash<Role, int> mapping = mappingFromTable();
+    const FileFormat *format = formats::byFilePath(filePath);
+    if (!format) {
+        *errorString = tr("%1 is not a recognised measurement format.")
+                           .arg(QFileInfo(filePath).fileName());
+        return false;
+    }
+    if (format->multiPoint) {
+        *errorString = tr("%1 holds a whole cross section rather than a single point.\n"
+                          "Use Import > Import FlowTracker2 survey for it.")
+                           .arg(QFileInfo(filePath).fileName());
+        return false;
+    }
+
+    QHash<Role, int> mapping;
+    if (format->needsColumnMapping) {
+        mapping = mappingFromTable();
         if (mapping.isEmpty()) {
             updateMappingTable();
             mapping = mappingFromTable();
@@ -340,10 +355,16 @@ bool PointWizard::loadDataFile(QString *errorString)
             *errorString = tr("Please assign at least the u velocity column.");
             return false;
         }
-        data = CsvReader::readFile(filePath, mapping, errorString);
-    } else {
-        data = VnaReader::readFile(filePath, errorString);
     }
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        *errorString = tr("Cannot open %1: %2").arg(filePath, file.errorString());
+        return false;
+    }
+    AdvData data = format->read(file.readAll(), mapping, errorString);
+    if (!data.isEmpty())
+        data.setSourceFileName(QFileInfo(filePath).completeBaseName());
     if (data.isEmpty())
         return false;
     m_point.data = data;

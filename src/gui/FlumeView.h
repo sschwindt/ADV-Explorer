@@ -5,9 +5,10 @@
  */
 #pragma once
 
+#include "SiteView.h"
+
 #include <QGraphicsView>
 #include <QUuid>
-#include <QWidget>
 
 class QDoubleSpinBox;
 class QGraphicsScene;
@@ -24,7 +25,7 @@ class ProjectModel;
 /// Clicking into the flume requests a new measurement point; clicking a
 /// marker requests editing it. One circle marker is shown per z position;
 /// markers turn dark blue once a water depth is defined.
-class FlumeView : public QWidget
+class FlumeView : public SiteView
 {
     Q_OBJECT
 public:
@@ -34,14 +35,11 @@ public:
     double flumeWidth() const;
     void setFlumeSize(double length, double width);
 
-signals:
-    /// User clicked into empty flume space at flume coordinates (m).
-    void newPointRequested(double x, double y);
-    /// User clicked an existing marker.
-    void editPointRequested(const QUuid &pointId);
+    QJsonObject saveState() const override;
+    void restoreState(const QJsonObject &state) override;
 
 public slots:
-    void rebuild();
+    void rebuild() override;
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;

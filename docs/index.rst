@@ -3,7 +3,8 @@ ADV-Explorer
 
 ADV-Explorer is a free desktop application for analyzing acoustic Doppler
 velocimetry (ADV) measurements, such as those recorded with a Nortek Vectrino
-or UBERTONE profilers in laboratory flumes.
+or UBERTONE profilers in laboratory flumes, or with a SonTek FlowTracker2 on
+river cross sections in the field.
 
 .. figure:: img/main-window.png
    :alt: The ADV-Explorer main window with flume view and time series plot
@@ -36,6 +37,11 @@ ADV-Explorer replaces such scripts with an interactive workflow:
   manual heading, pitch, and roll rotations.
 * An entire analysis, including all raw data, lives in one standalone
   ``.advProj`` file that opens on any computer.
+* Field campaigns are handled in a second mode, where measurement points are
+  georeferenced in a coordinate system of the user's choice and drawn on an
+  OpenStreetMap basemap, whole FlowTracker2 cross sections are imported at once,
+  and turbulence quantities are labelled honestly for the sampling rate the
+  instrument achieves.
 
 The numerical methods were ported from the Python/Matlab
 `tke-calculator <https://tke-calculator.readthedocs.io/>`_ and are verified

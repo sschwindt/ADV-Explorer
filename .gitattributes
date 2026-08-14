@@ -1,0 +1,37 @@
+# Normalise line endings for text so the repository is identical on Linux and
+# Windows checkouts.
+* text=auto
+
+# Sources and documentation are always LF in the repository.
+*.cpp   text eol=lf
+*.h     text eol=lf
+*.c     text eol=lf
+*.txt   text eol=lf
+*.cmake text eol=lf
+*.md    text eol=lf
+*.rst   text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.py    text eol=lf
+*.qrc   text eol=lf
+
+# Test fixtures and binaries must never be touched. A .ft archive or a
+# GeoPackage that went through end-of-line conversion is silently corrupt, and
+# the .vna reference file is compared byte for byte by the parity tests.
+*.ft    binary
+*.gpkg  binary
+*.vna   binary
+*.vno   binary
+*.adv   binary
+*.xlsx  binary
+*.png   binary
+*.jpg   binary
+*.ico   binary
+*.advProj binary
+
+# FlowTracker2 CSV exports are read by column position and carry a UTF-8 BOM;
+# keep them exactly as the instrument software wrote them.
+*.ft.dat.csv -text
+*.ft.sum.csv -text
+*.ft.dis.csv -text
+*.ft.ctl.csv -text

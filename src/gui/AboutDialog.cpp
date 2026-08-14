@@ -36,7 +36,10 @@ AboutDialog::AboutDialog(QWidget *parent)
         "GNU General Public License v3</a>. This program comes without any "
         "warranty; see the LICENSE file for details. Plotting is powered by "
         "QCustomPlot (GPLv3); Excel output by QXlsx (MIT); spectra by "
-        "KissFFT (BSD).</p>")
+        "KissFFT (BSD); FlowTracker2 archives are unpacked with miniz (MIT).</p>"
+        "<p>Field mode shows map tiles from OpenStreetMap. Map data is "
+        "(c) <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap "
+        "contributors</a>, available under the Open Database License.</p>")
         .arg(QStringLiteral(ADV_EXPLORER_VERSION), QStringLiteral(ADV_EXPLORER_URL)));
     layout->addWidget(text);
 

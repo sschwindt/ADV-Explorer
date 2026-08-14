@@ -6,12 +6,16 @@
 #include "MainWindow.h"
 
 #include "AboutDialog.h"
+#include "CrsDialog.h"
 #include "FlumeView.h"
+#include "FlowTrackerImportWizard.h"
 #include "ImportWizard.h"
+#include "MapView.h"
 #include "PlotFrame.h"
 #include "PointWizard.h"
 #include "ProfileFrame.h"
 
+#include "core/Crs.h"
 #include "core/CsvReader.h"
 #include "core/ProfileStatsExport.h"
 #include "core/Project.h"
@@ -24,10 +28,12 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QGuiApplication>
 #include <QJsonArray>
 #include <QLabel>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QScreen>
 #include <QSpinBox>
 #include <QSplitter>
 #include <QStatusBar>
@@ -45,16 +51,22 @@ MainWindow::MainWindow(QWidget *parent)
     , m_model(new ProjectModel(this))
 {
     setWindowTitle(QStringLiteral("ADV-Explorer"));
-    resize(1280, 860);
+    // The preferred size does not fit every display: 860 px of height overflows
+    // a 1366x768 laptop, which is a very ordinary field machine, and a window
+    // taller than the screen hides the status bar with no easy way to reach it.
+    // Clamp to what the screen actually offers, leaving room for the task bar.
+    if (const QScreen *screen = QGuiApplication::primaryScreen()) {
+        const QSize available = screen->availableGeometry().size();
+        resize(qMin(1280, available.width() - 40), qMin(860, available.height() - 60));
+    } else {
+        resize(1280, 860);
+    }
 
     // subtle background image for a modern app look
     setStyleSheet(QStringLiteral(
         "QMainWindow { background-image: url(:/img/app-background.jpg);"
         " background-position: center; }"));
 
-    m_flumeView = new FlumeView(m_model, this);
-    connect(m_flumeView, &FlumeView::newPointRequested, this, &MainWindow::createPointAt);
-    connect(m_flumeView, &FlumeView::editPointRequested, this, &MainWindow::editPoint);
 
     // time-series tab with a stackable column of plot frames
     auto *plotContainer = new QWidget(this);
@@ -70,16 +82,18 @@ MainWindow::MainWindow(QWidget *parent)
     m_tabs->addTab(plotContainer, tr("Time series"));
     m_tabs->addTab(m_profileFrame, tr("Vertical profiles"));
 
-    auto *splitter = new QSplitter(Qt::Vertical, this);
-    splitter->addWidget(m_flumeView);
-    splitter->addWidget(m_tabs);
-    // flume view gets 2/5 of the height (20% more than the earlier 1/3)
-    splitter->setStretchFactor(0, 2);
-    splitter->setStretchFactor(1, 3);
-    splitter->setSizes({2 * height() / 5, 3 * height() / 5});
-    setCentralWidget(splitter);
+    m_splitter = new QSplitter(Qt::Vertical, this);
+    m_splitter->addWidget(new QWidget(m_splitter)); // replaced by applyMode()
+    m_splitter->addWidget(m_tabs);
+    // site view gets 2/5 of the height (20% more than the earlier 1/3)
+    m_splitter->setStretchFactor(0, 2);
+    m_splitter->setStretchFactor(1, 3);
+    m_splitter->setSizes({2 * height() / 5, 3 * height() / 5});
+    setCentralWidget(m_splitter);
 
     buildMenus();
+    applyMode(m_model->mode());
+    connect(m_model, &ProjectModel::modeChanged, this, &MainWindow::applyMode);
     statusBar()->showMessage(tr("Click into the flume to define a measurement point."));
 }
 
@@ -104,6 +118,42 @@ void MainWindow::buildMenus()
     // --- Import ---------------------------------------------------------------
     QMenu *importMenu = menuBar()->addMenu(tr("&Import"));
     importMenu->addAction(tr("Import ADV &files..."), this, &MainWindow::importFiles);
+    m_importFtAction = importMenu->addAction(tr("Import FlowTracker2 &survey..."),
+                                             this, &MainWindow::importFlowTrackerSurvey);
+
+    // --- Project (campaign mode and coordinate system) ------------------------
+    // mode belongs here rather than in a menu of its own: it is a property of
+    // the project and is saved with it
+    QMenu *projectMenu = menuBar()->addMenu(tr("&Project"));
+    auto *modeGroup = new QActionGroup(this);
+    m_labModeAction = projectMenu->addAction(tr("&Lab mode (Vectrino, flume)"));
+    m_fieldModeAction = projectMenu->addAction(tr("&Field mode (FlowTracker, river)"));
+    for (QAction *action : {m_labModeAction, m_fieldModeAction}) {
+        action->setCheckable(true);
+        modeGroup->addAction(action);
+    }
+    m_labModeAction->setChecked(true);
+    connect(m_labModeAction, &QAction::triggered, this, [this]() { m_model->setMode(Mode::Lab); });
+    connect(m_fieldModeAction, &QAction::triggered, this, [this]() {
+        if (!m_model->points().isEmpty()) {
+            const auto answer = QMessageBox::question(
+                this, tr("Switch to field mode"),
+                tr("The %1 existing measurement points keep their x and y values, but "
+                   "those values will now be read as easting and northing in the project "
+                   "coordinate system.\n\nNo coordinates are converted. Continue?")
+                    .arg(m_model->points().size()));
+            if (answer != QMessageBox::Yes) {
+                m_labModeAction->setChecked(true);
+                return;
+            }
+        }
+        m_model->setMode(Mode::Field);
+        if (m_model->epsg() == 0)
+            chooseProjectCrs();
+    });
+    projectMenu->addSeparator();
+    m_crsAction = projectMenu->addAction(tr("&Coordinate system..."),
+                                         this, &MainWindow::chooseProjectCrs);
 
     // --- Export ---------------------------------------------------------------
     QMenu *exportMenu = menuBar()->addMenu(tr("&Export"));
@@ -114,6 +164,8 @@ void MainWindow::buildMenus()
                         this, &MainWindow::exportProfileStats);
     QMenu *plotsMenu = exportMenu->addMenu(tr("&Plots"));
     plotsMenu->addAction(tr("Current frame as &PNG (300 dpi)..."), this, &MainWindow::exportPng);
+    m_exportMapAction = plotsMenu->addAction(tr("&Map view as PNG (300 dpi)..."),
+                                             this, &MainWindow::exportMapPng);
 
     // --- View (plot frames) ---------------------------------------------------
     QMenu *viewMenu = menuBar()->addMenu(tr("&View"));
@@ -141,6 +193,7 @@ void MainWindow::buildMenus()
     auto *wGroup = new QActionGroup(this);
     QAction *w1Action = processingMenu->addAction(tr("Use w1 for W statistics"));
     QAction *w2Action = processingMenu->addAction(tr("Use w2 for W statistics"));
+    m_w2Action = w2Action;
     for (QAction *action : {w1Action, w2Action}) {
         action->setCheckable(true);
         wGroup->addAction(action);
@@ -152,6 +205,100 @@ void MainWindow::buildMenus()
     // --- About ---------------------------------------------------------------
     QMenu *aboutMenu = menuBar()->addMenu(tr("&About"));
     aboutMenu->addAction(tr("&About ADV-Explorer..."), this, &MainWindow::showAbout);
+}
+
+void MainWindow::applyMode(Mode mode)
+{
+    // remember what the outgoing view was showing before it is destroyed
+    if (m_siteView) {
+        QJsonObject settings = m_model->plotSettings();
+        settings[m_model->mode() == Mode::Field ? QStringLiteral("mapView")
+                                                : QStringLiteral("flumeView")] =
+            m_siteView->saveState();
+        m_model->setPlotSettings(settings);
+    }
+
+    SiteView *view = mode == Mode::Field
+                         ? static_cast<SiteView *>(new MapView(m_model, this))
+                         : static_cast<SiteView *>(new FlumeView(m_model, this));
+    connect(view, &SiteView::newPointRequested, this, &MainWindow::createPointAt);
+    connect(view, &SiteView::editPointRequested, this, &MainWindow::editPoint);
+
+    // replaceWidget keeps the splitter proportions the user set
+    QWidget *old = m_splitter->replaceWidget(0, view);
+    if (old)
+        old->deleteLater();
+    m_splitter->setStretchFactor(0, 2);
+    m_siteView = view;
+
+    const QJsonObject settings = m_model->plotSettings();
+    const QString key = mode == Mode::Field ? QStringLiteral("mapView")
+                                            : QStringLiteral("flumeView");
+    if (settings.contains(key))
+        view->restoreState(settings[key].toObject());
+    view->rebuild();
+
+    if (m_labModeAction)
+        m_labModeAction->setChecked(mode == Mode::Lab);
+    if (m_fieldModeAction)
+        m_fieldModeAction->setChecked(mode == Mode::Field);
+    if (m_crsAction)
+        m_crsAction->setEnabled(mode == Mode::Field);
+    if (m_importFtAction)
+        m_importFtAction->setEnabled(mode == Mode::Field);
+    if (m_exportMapAction)
+        m_exportMapAction->setEnabled(mode == Mode::Field);
+    if (m_w2Action) {
+        // a FlowTracker2 probe has three beams and a single vertical component
+        m_w2Action->setEnabled(mode == Mode::Lab);
+        m_w2Action->setToolTip(mode == Mode::Field
+                                   ? tr("FlowTracker2 measures a single vertical component.")
+                                   : QString());
+    }
+
+    statusBar()->showMessage(mode == Mode::Field
+                                 ? tr("Click the map to define a measurement point.")
+                                 : tr("Click into the flume to define a measurement point."));
+}
+
+void MainWindow::exportMapPng()
+{
+    auto *map = qobject_cast<MapView *>(m_siteView);
+    if (!map) {
+        QMessageBox::information(this, tr("Export map"),
+                                 tr("The map view is only available in field mode."));
+        return;
+    }
+    const QString filePath = QFileDialog::getSaveFileName(
+        this, tr("Export the map view as PNG (300 dpi)"), QString(), tr("PNG images (*.png)"));
+    if (filePath.isEmpty())
+        return;
+
+    // render at three times the on-screen size so 300 dpi output stays legible;
+    // the OpenStreetMap attribution is painted by paintEvent and is therefore
+    // part of the image, which the licence requires
+    const QImage image = map->renderImage(map->size() * 3, 300);
+    if (!image.save(filePath))
+        QMessageBox::critical(this, tr("Export map"), tr("Could not write %1").arg(filePath));
+    else
+        statusBar()->showMessage(tr("Map exported to %1").arg(filePath));
+}
+
+void MainWindow::chooseProjectCrs()
+{
+    CrsDialog dialog(m_model->epsg(), this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+    if (!m_model->setEpsg(dialog.selectedEpsg())) {
+        QMessageBox::warning(this, tr("Coordinate system"),
+                             tr("EPSG:%1 is not supported. %2")
+                                 .arg(dialog.selectedEpsg())
+                                 .arg(crs::supportedRangesText()));
+        return;
+    }
+    statusBar()->showMessage(tr("Project coordinate system: EPSG:%1 (%2).")
+                                 .arg(m_model->epsg())
+                                 .arg(crs::name(m_model->epsg())));
 }
 
 void MainWindow::createPointAt(double x, double y)
@@ -185,6 +332,20 @@ void MainWindow::importFiles()
     statusBar()->showMessage(tr("Imported %1 measurement points.").arg(wizard.results().size()));
 }
 
+void MainWindow::importFlowTrackerSurvey()
+{
+    FlowTrackerImportWizard wizard(m_model, this);
+    if (wizard.exec() != QDialog::Accepted)
+        return;
+    for (const CrossSection &section : wizard.crossSections())
+        m_model->addCrossSection(section);
+    for (const MeasurementPoint &point : wizard.results())
+        m_model->addPoint(point);
+    statusBar()->showMessage(tr("Imported %1 measurement points from %2 stations.")
+                                 .arg(wizard.results().size())
+                                 .arg(wizard.stationCount()));
+}
+
 void MainWindow::newProject()
 {
     m_model->clear();
@@ -203,10 +364,13 @@ void MainWindow::openProjectDialog()
 void MainWindow::openProject(const QString &filePath)
 {
     QString error;
-    if (!project::load(m_model, filePath, &error)) {
+    QString warning;
+    if (!project::load(m_model, filePath, &error, &warning)) {
         QMessageBox::critical(this, tr("Open project"), error);
         return;
     }
+    if (!warning.isEmpty())
+        QMessageBox::warning(this, tr("Open project"), warning);
     m_projectPath = filePath;
     setWindowTitle(QStringLiteral("ADV-Explorer - %1").arg(QFileInfo(filePath).fileName()));
     applyPlotSettings();
@@ -226,7 +390,9 @@ bool MainWindow::saveProjectAs()
         this, tr("Save project"), QString(), project::fileFilter());
     if (filePath.isEmpty())
         return false;
-    if (!filePath.endsWith(QStringLiteral(".advProj")))
+    // on Windows the native dialog may hand back the suffix in another case,
+    // and appending a second one would produce "survey.ADVPROJ.advProj"
+    if (!filePath.endsWith(QStringLiteral(".advProj"), Qt::CaseInsensitive))
         filePath += QStringLiteral(".advProj");
     return writeProject(filePath);
 }
@@ -253,8 +419,17 @@ void MainWindow::collectPlotSettings()
         frames.append(frame->saveState());
     settings[QStringLiteral("plotFrames")] = frames;
     settings[QStringLiteral("profileFrame")] = m_profileFrame->saveState();
-    settings[QStringLiteral("flumeLength")] = m_flumeView->flumeLength();
-    settings[QStringLiteral("flumeWidth")] = m_flumeView->flumeWidth();
+    if (m_siteView) {
+        settings[m_model->mode() == Mode::Field ? QStringLiteral("mapView")
+                                                : QStringLiteral("flumeView")] =
+            m_siteView->saveState();
+    }
+    // keep whichever view is not currently shown from losing its state
+    const QJsonObject previous = m_model->plotSettings();
+    for (const QString &key : {QStringLiteral("mapView"), QStringLiteral("flumeView")}) {
+        if (!settings.contains(key) && previous.contains(key))
+            settings[key] = previous[key];
+    }
     m_model->setPlotSettings(settings);
 }
 
@@ -263,8 +438,19 @@ void MainWindow::applyPlotSettings()
     const QJsonObject settings = m_model->plotSettings();
     if (settings.isEmpty())
         return;
-    m_flumeView->setFlumeSize(settings[QStringLiteral("flumeLength")].toDouble(5.0),
-                              settings[QStringLiteral("flumeWidth")].toDouble(1.0));
+    if (m_siteView) {
+        const QString key = m_model->mode() == Mode::Field ? QStringLiteral("mapView")
+                                                           : QStringLiteral("flumeView");
+        if (settings.contains(key)) {
+            m_siteView->restoreState(settings[key].toObject());
+        } else {
+            // projects written before the views got their own state blocks
+            QJsonObject legacy;
+            legacy[QStringLiteral("length")] = settings[QStringLiteral("flumeLength")].toDouble(5.0);
+            legacy[QStringLiteral("width")] = settings[QStringLiteral("flumeWidth")].toDouble(1.0);
+            m_siteView->restoreState(legacy);
+        }
+    }
     const QJsonArray frames = settings[QStringLiteral("plotFrames")].toArray();
     while (m_plotFrames.size() < frames.size() && m_plotFrames.size() < 2)
         addSecondPlotFrame();
@@ -415,6 +601,11 @@ bool MainWindow::captureDocScreenshots(const QString &outputDir)
     if (!QDir().mkpath(outputDir))
         return false;
 
+    // Pin the canonical documentation size. The constructor clamps the window to
+    // the screen, and the offscreen platform advertises one of its own, which
+    // would otherwise make the published screenshots vary with the build host.
+    resize(1280, 860);
+
     // demo vertical profile from the u-v-w tables shipped in input-data/;
     // the u component is scaled per depth to a log-law-like shape so the
     // profile view is illustrative (screenshots only, never analysis output)
@@ -511,6 +702,62 @@ bool MainWindow::captureDocScreenshots(const QString &outputDir)
     wizard.show();
     ok = snap(&wizard, QStringLiteral("point-wizard.png")) && ok;
     wizard.close();
+
+    // --- field mode -----------------------------------------------------------
+    // The documentation build runs offscreen and without a network, so the
+    // basemap is switched off explicitly: what gets captured is the offline
+    // fallback, which is also what a user sees in the field without coverage.
+    const QList<MeasurementPoint> labPoints = m_model->points();
+    m_model->clear();
+    m_model->setMode(Mode::Field);
+    m_model->setEpsg(25832);
+
+    CrossSection section;
+    section.name = QStringLiteral("Isar side channel");
+    section.leftChainage = 17.0;
+    section.rightChainage = 3.0;
+    section.leftX = 677394.935;
+    section.leftY = 5268148.607;
+    section.rightX = 677403.2;
+    section.rightY = 5268137.3;
+    for (int i = 0; i <= 14; ++i) {
+        const double chainage = 17.0 - i;
+        section.bed.append(QPointF(chainage, 0.7 * std::sin(M_PI * i / 14.0)));
+    }
+    m_model->addCrossSection(section);
+
+    for (int i = 1; i < 14; i += 2) {
+        const double chainage = 17.0 - i;
+        const double depth = 0.7 * std::sin(M_PI * i / 14.0);
+        double x = 0.0;
+        double y = 0.0;
+        section.positionAt(chainage, &x, &y);
+        for (const double fraction : {0.2, 0.6, 0.8}) {
+            MeasurementPoint point = labPoints.isEmpty() ? MeasurementPoint()
+                                                         : labPoints.first();
+            point.id = QUuid::createUuid();
+            point.x = x;
+            point.y = y;
+            point.z = (1.0 - fraction) * depth;
+            point.waterDepth = depth;
+            point.chainage = chainage;
+            point.stationName = QStringLiteral("Isar station %1").arg((i + 1) / 2);
+            m_model->addPoint(point);
+        }
+    }
+
+    QJsonObject mapState;
+    mapState[QStringLiteral("basemap")] = false; // no network in the docs build
+    mapState[QStringLiteral("zoom")] = 21; // overzoomed: stations sit metres apart
+    mapState[QStringLiteral("centerLon")] = 11.35744;
+    mapState[QStringLiteral("centerLat")] = 47.54247;
+    QJsonObject fieldSettings = m_model->plotSettings();
+    fieldSettings[QStringLiteral("mapView")] = mapState;
+    m_model->setPlotSettings(fieldSettings);
+    applyPlotSettings();
+
+    m_tabs->setCurrentIndex(0);
+    ok = snap(this, QStringLiteral("field-mode.png")) && ok;
 
     return ok;
 }

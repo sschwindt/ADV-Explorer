@@ -1,0 +1,102 @@
+﻿Desktop_Software_Build_Version,2.0
+SITE_NAME;;Ft ds
+Site_Number;;ISAR DS
+Local_Start_Time;;2025-09-29 15:52:33
+Local_End_Time;;2025-09-30 09:50:53
+Local_Time_UTC_Offset_Hours;Stunden;1,0000
+Anwender;;LR
+Handheld_Serial_Number;;FT2H2004008
+Handheld_Software_Version;;2.0
+Watstange;;TopSetting
+Handheld_Units_System;;Metric
+Number_Of_Probes;;1
+ADV_Serial_Number;;FT2P2028002
+ADV_Firmware_Version;;1.30
+ADV_Number_Of_Beams;;3
+Kommentar;;
+Calculations_Engine;;FlowTracker2
+Number_Of_Stations;;8
+Discharge_Equation;;MidSection
+Rated_Discharge;m³/s;NaN
+Rated_Height;m³/s;NaN
+Minimum_Boundary_Status;;Best
+Total_Width;m;3,5
+Total_Area;m²;1,758
+Total_Discharge;m³/s;1,613
+Mean_Depth;m;0,502
+Mean_Velocity_Vx;m/s;0,918
+Mean_Velocity_Vy;m/s;-0,021
+Mean_Velocity_Vz;m/s;-0,046
+Mean_SNR;dB;26,826
+Mean_VxErr;m/s;0,024
+Mean_VyErr;m/s;0,013
+Mean_VzErr;m/s;0,032
+Mean_Temp;° C;9,937
+
+Quality_Control_Checks
+Station_Spacing;;Bestanden
+Station_Order;;Bestanden
+Water_Depth;;Bestanden
+Boundary_Interference;;Bestanden
+Fractional_Depth;;Bestanden
+Low_SNR;;Bestanden
+Nähert sich niedrigem SNR;;Bestanden
+Beam_SNRs_Similar;;Bestanden
+Beam_SNR_Variation;;Bestanden
+Transect_SNR_Variation;;Bestanden
+Velocity_Standard_Error;;Bestanden
+Percent_Of_Spikes;;Bestanden
+Velocity_Angle;;Bestanden
+Rod_Angle;;Bestanden
+Station_Durchfluss;;Bestanden
+End_Edge_Location;;Bestanden
+Noise_Level;;Bestanden
+Peak_Location;;Bestanden
+Peak_Shape;;Bestanden
+Pre_Calculation_Validation;;Bestanden
+
+Discharge_Uncertainty_ISO
+Insgesamt;%;6,063
+Genauigkeit;%;1
+Tiefe;%;0,22
+Geschwindigkeit;%;0,656
+Breite;%;0,213
+Methode;%;1,376
+#_Messposition;%;5,774
+
+Discharge_Uncertainty_IVE
+Insgesamt;%;2,242
+Genauigkeit;%;1
+Tiefe;%;1,346
+Geschwindigkeit;%;1,473
+Breite;%;0,211
+
+Supplemental_Data;#;0
+Record_Number;Date_And_Time;Gauge_Height (m);Rated_Discharge (m³/s);Temperatur (° C);Salzgehalt (PSS);Kommentare
+
+Automated_Beam_Check;#;1
+Record_Number;Date_And_Time;Noise_Level_Check;SNR_Check;Peak_Location_Check;Peak_Shape_Check
+01;2025-09-29 15:54:36;Bestanden;Bestanden;Bestanden;Bestanden
+
+St;Uhr;GPSLat;GPSLon;Loc;LocY;FinalD;IceD;WsIceD;WsSlushD;%Tiefe;MeasD;Npts;Spike;VelX;VelY;VelZ;Winkel;VxErr;VyErr;VzErr;SNR1;SNR2;SNR3;Bnd;Temp;Neigung;KorrFakt;MeanV;Fläche;Durchfluss;%Q
+(#);();(deg N);(deg E);(m);(m);(m);(m);(m);(m);();(m);(#);(#);(m/s);(m/s);(m/s);(deg);(m/s);(m/s);(m/s);(dB);(dB);(dB);();(° C);(deg);();(m/s);(m²);(m³/s);(%)
+000;16:05:29;47,543;11,357;18,4;NaN;0,134;NaN;NaN;NaN;NaN;NaN;0;0;NaN;NaN;NaN;NaN;NaN;NaN;NaN;NaN;NaN;NaN;Undefined;NaN;NaN;1,00;0,566;0,034;0,019;1,175
+001;16:14:20;47,54257N;011,35744E;17,9;NaN;0,212;NaN;NaN;NaN;0,6;0,127;60;4;0,566;0,018;-0,011;1,851;0,013;0,006;0,012;33,332;32,579;34,012;Best;10,16;0,6;1,00;0,566;0,106;0,06;3,719
+002;16:24:15;47,54257N;011,35744E;17,4;NaN;0,337;NaN;NaN;NaN;0,2;0,067;60;2;0,451;-0,082;-0,051;-10,298;0,026;0,009;0,022;35,997;35,877;37,46;Best;10,072;2,338;1,00;0,631;0,169;0,106;6,59
+002;16:21:55;47,54257N;011,35744E;17,4;NaN;0,337;NaN;NaN;NaN;0,6;0,202;60;1;0,616;-0,054;-0,079;-5,019;0,025;0,009;0,027;37,836;36,96;39,37;Best;10,096;1,963;1,00;NaN;NaN;NaN;NaN
+002;16:18:56;47,54257N;011,35744E;17,4;NaN;0,337;NaN;NaN;NaN;0,8;0,27;60;2;0,84;-0,01;-0,047;-0,696;0,022;0,012;0,028;34,063;33,293;34,259;Best;10,041;3,035;1,00;NaN;NaN;NaN;NaN
+003;16:30:41;47,54260N;011,35742E;16,9;NaN;0,451;NaN;NaN;NaN;0,2;0,09;60;6;1,097;0,145;-0,061;7,511;0,026;0,02;0,043;24,546;24,114;20,943;Best;9,923;1,378;1,00;0,754;0,226;0,17;10,539
+003;16:29:02;47,54260N;011,35742E;16,9;NaN;0,451;NaN;NaN;NaN;0,6;0,271;60;3;0,741;-0,33;0,033;-23,974;0,028;0,015;0,035;27,996;27,386;29,409;Best;9,973;4,946;1,00;NaN;NaN;NaN;NaN
+003;16:27:30;47,54260N;011,35742E;16,9;NaN;0,451;NaN;NaN;NaN;0,8;0,361;60;4;0,436;-0,228;0,019;-27,58;0,026;0,013;0,036;34,452;33,912;36,027;Best;10,029;7,186;1,00;NaN;NaN;NaN;NaN
+004;16:37:14;47,54253N;011,35743E;16,4;NaN;0,57;NaN;NaN;NaN;0,2;0,114;60;1;1,137;0,319;-0,034;15,68;0,021;0,014;0,028;19,961;19,201;21,173;Best;9,852;0,729;1,00;0,95;0,285;0,271;16,782
+004;16:36:12;47,54253N;011,35743E;16,4;NaN;0,57;NaN;NaN;NaN;0,6;0,342;60;3;0,982;0,054;-0,078;3,137;0,021;0,017;0,03;25,296;24,258;26,611;Best;9,917;3,874;1,00;NaN;NaN;NaN;NaN
+004;16:33:38;47,54253N;011,35743E;16,4;NaN;0,57;NaN;NaN;NaN;0,8;0,456;60;1;0,698;-0,037;-0,067;-3,034;0,027;0,011;0,037;25,357;24,382;27,353;Best;9,96;7,103;1,00;NaN;NaN;NaN;NaN
+005;16:45:11;47,54251N;011,35737E;15,9;NaN;0,699;NaN;NaN;NaN;0,2;0,14;60;4;1,27;-0,252;0,012;-11,219;0,022;0,013;0,027;19,859;19,586;20,995;Best;9,792;1,792;1,00;1,008;0,349;0,352;21,837
+005;16:44:06;47,54251N;011,35737E;15,9;NaN;0,699;NaN;NaN;NaN;0,6;0,419;60;3;1,033;-0,069;0,02;-3,814;0,028;0,017;0,043;23,209;23,203;25,474;Best;9,885;7,075;1,00;NaN;NaN;NaN;NaN
+005;16:42:59;47,54251N;011,35737E;15,9;NaN;0,699;NaN;NaN;NaN;0,8;0,559;60;0;0,695;0,025;0,05;2,025;0,028;0,013;0,036;24,008;23,589;25,97;Best;9,922;2,84;1,00;NaN;NaN;NaN;NaN
+006;16:50:18;47,54252N;011,35742E;15,4;NaN;0,786;NaN;NaN;NaN;0,2;0,157;60;4;1,416;0,092;-0,088;3,737;0,021;0,014;0,029;19,137;18,849;20,412;Best;9,735;2,797;1,00;1,06;0,393;0,417;25,826
+006;16:49:00;47,54252N;011,35742E;15,4;NaN;0,786;NaN;NaN;NaN;0,6;0,472;60;0;1,159;-0,102;-0,188;-5,047;0,03;0,017;0,064;21,005;21,019;22,831;Best;9,81;4,395;1,00;NaN;NaN;NaN;NaN
+006;16:47:45;47,54252N;011,35742E;15,4;NaN;0,786;NaN;NaN;NaN;0,8;0,629;60;5;0,507;0,518;-0,057;45,61;0,029;0,023;0,029;27,654;26,952;29,455;Best;9,885;6,302;1,00;NaN;NaN;NaN;NaN
+007;16:55:40;47,54253N;011,35745E;14,9;NaN;0,786;NaN;NaN;NaN;0,2;0,157;60;0;1,348;0,004;-0,017;0,182;0,026;0,015;0,033;17,829;17,608;19,369;Best;9,698;1,888;1,00;1,111;0,197;0,218;13,533
+007;16:53:45;47,54253N;011,35745E;14,9;NaN;0,786;NaN;NaN;NaN;0,6;0,472;60;1;1,107;-0,165;-0,112;-8,502;0,029;0,016;0,05;23,47;23,203;24,913;Best;9,775;9,921;1,00;NaN;NaN;NaN;NaN
+007;16:52:26;47,54253N;011,35745E;14,9;NaN;0,786;NaN;NaN;NaN;0,8;0,629;60;1;0,883;-0,184;0,043;-11,79;0,031;0,019;0,048;26,981;26,921;28,976;Best;9,826;7,044;1,00;NaN;NaN;NaN;NaN

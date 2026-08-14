@@ -13,6 +13,9 @@ Requirements
   newer, for example Debian 12, Ubuntu 22.04+, or Linux Mint 21+.
 * No Python, Qt, or other software needs to be installed; everything is
   bundled with the executables.
+* An internet connection is optional. It is used only to fetch map tiles in
+  field mode; everything else, including the coordinate grid and all analysis,
+  works offline.
 
 Windows 10/11
 -------------
@@ -58,9 +61,10 @@ Linux
 Updating
 --------
 
-Simply download the newest release file and replace the old one. Your
-``.advProj`` project files remain compatible and are never modified by an
-update.
+Simply download the newest release file and replace the old one. Project files
+written by an older version keep opening: the format is versioned and older
+layouts are read unchanged. A project written by a *newer* version than the one
+you are running is refused with a clear message rather than opened partially.
 
 Building from source
 --------------------

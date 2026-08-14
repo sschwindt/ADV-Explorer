@@ -17,7 +17,11 @@ jobs:
       - name: Install Qt 6
         run: |
           sudo apt-get update
+          # libqt6sql6-sqlite is a separate package that qt6-base-dev does NOT
+          # pull in; without it there is no SQLite driver to deploy and the
+          # GeoPackage import silently disappears from the AppImage
           sudo apt-get install -y qt6-base-dev qt6-base-dev-tools qt6-base-private-dev \
+            libqt6sql6-sqlite \
             libgl1-mesa-dev libxkbcommon-dev libfuse2
 
       - name: Configure
@@ -41,13 +45,34 @@ jobs:
           # the qt plugin is spawned as a nested AppImage; make sure it can
           # run even without FUSE
           export APPIMAGE_EXTRACT_AND_RUN=1
+          # ask for these plugin groups by name rather than relying on the
+          # plugin's dependency sniffing: sqldrivers reads GeoPackages and tls
+          # is what makes the HTTPS tile requests possible
+          export EXTRA_QT_PLUGINS="sqldrivers;tls"
+          # the qt plugin bundles the TLS backend plugin but not OpenSSL itself,
+          # so map tiles (HTTPS) would fail in the AppImage without these
           ./linuxdeploy-x86_64.AppImage --appimage-extract-and-run \
             --appdir AppDir \
+            --library /usr/lib/x86_64-linux-gnu/libssl.so.3 \
+            --library /usr/lib/x86_64-linux-gnu/libcrypto.so.3 \
             --desktop-file packaging/adv-explorer.desktop \
             --icon-file adv-explorer.png \
             --plugin qt \
             --output appimage
           mv ADV-Explorer*.AppImage adv-explorer-linux-x86_64.AppImage
+
+      - name: Verify the AppImage carries the field-mode runtime
+        run: |
+          # map tiles need a TLS backend, GeoPackage import needs the SQLite
+          # driver; both fail silently at runtime when they are missing
+          ./adv-explorer-linux-x86_64.AppImage --appimage-extract >/dev/null
+          test -n "$(find squashfs-root -name 'libqsqlite*.so')" \
+            || { echo "sqldrivers plugin missing"; exit 1; }
+          test -n "$(find squashfs-root -path '*tls*' -name '*.so')" \
+            || { echo "TLS plugin missing"; exit 1; }
+          test -n "$(find squashfs-root -name 'libssl*')" \
+            || { echo "OpenSSL missing, HTTPS tiles would fail"; exit 1; }
+          rm -rf squashfs-root
 
       - uses: actions/upload-artifact@v4
         with:
@@ -82,6 +107,14 @@ jobs:
           Copy-Item templates/ADV-profiles.xlsx dist/adv-explorer/templates/
           Copy-Item LICENSE,README.md dist/adv-explorer/
           windeployqt --release --no-translations dist/adv-explorer/adv-explorer.exe
+          # field mode needs the SQLite driver (GeoPackage import) and a TLS
+          # backend (map tiles); Qt uses Schannel on Windows, so no OpenSSL
+          if (-not (Test-Path dist/adv-explorer/sqldrivers/qsqlite.dll)) {
+            throw "sqldrivers plugin missing from the deployment"
+          }
+          if (-not (Get-ChildItem dist/adv-explorer/tls -ErrorAction SilentlyContinue)) {
+            throw "TLS plugin missing from the deployment"
+          }
           Compress-Archive -Path dist/adv-explorer -DestinationPath adv-explorer-windows-x86_64.zip
 
       - uses: actions/upload-artifact@v4

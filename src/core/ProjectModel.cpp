@@ -5,6 +5,8 @@
  */
 #include "ProjectModel.h"
 
+#include "Crs.h"
+
 #include <QThread>
 
 #include <algorithm>
@@ -114,6 +116,39 @@ QStringList ProjectModel::profileKeys() const
             keys.append(p.xyKey());
     }
     return keys;
+}
+
+void ProjectModel::setMode(Mode mode)
+{
+    if (m_mode == mode)
+        return;
+    m_mode = mode;
+    // coordinates are deliberately left untouched: switching mode changes how
+    // x and y are read, not what was measured
+    emit modeChanged(m_mode);
+}
+
+bool ProjectModel::setEpsg(int epsg)
+{
+    if (epsg != 0 && !crs::isSupported(epsg))
+        return false;
+    if (m_epsg == epsg)
+        return true;
+    m_epsg = epsg;
+    emit crsChanged(m_epsg);
+    return true;
+}
+
+void ProjectModel::setCrossSections(const QList<CrossSection> &sections)
+{
+    m_crossSections = sections;
+    emit crossSectionsChanged();
+}
+
+void ProjectModel::addCrossSection(const CrossSection &section)
+{
+    m_crossSections.append(section);
+    emit crossSectionsChanged();
 }
 
 RotationAngles ProjectModel::correction(const QString &xyKey) const

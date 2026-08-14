@@ -11,6 +11,7 @@
 #include <QGraphicsEllipseItem>
 #include <QGraphicsPolygonItem>
 #include <QGraphicsScene>
+#include <QJsonObject>
 #include <QGraphicsSimpleTextItem>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -50,7 +51,7 @@ double FlumeView::xMargin() const
 }
 
 FlumeView::FlumeView(ProjectModel *model, QWidget *parent)
-    : QWidget(parent)
+    : SiteView(parent)
     , m_model(model)
     , m_view(new QGraphicsView(this))
     , m_scene(new QGraphicsScene(this))
@@ -267,4 +268,18 @@ bool FlumeView::eventFilter(QObject *watched, QEvent *event)
         }
     }
     return QWidget::eventFilter(watched, event);
+}
+
+QJsonObject FlumeView::saveState() const
+{
+    QJsonObject state;
+    state[QStringLiteral("length")] = flumeLength();
+    state[QStringLiteral("width")] = flumeWidth();
+    return state;
+}
+
+void FlumeView::restoreState(const QJsonObject &state)
+{
+    setFlumeSize(state[QStringLiteral("length")].toDouble(5.0),
+                 state[QStringLiteral("width")].toDouble(1.0));
 }

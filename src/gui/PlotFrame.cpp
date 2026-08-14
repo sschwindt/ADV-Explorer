@@ -6,6 +6,7 @@
 #include "PlotFrame.h"
 
 #include "core/ProjectModel.h"
+#include "core/StatsLabels.h"
 
 #include <qcustomplot.h>
 
@@ -20,7 +21,10 @@ using namespace adv;
 
 namespace {
 
-const QString kTkeColumn = QStringLiteral("TKE inst. (m^2/s^2)");
+/// Stable identifier of the derived TKE series. The *displayed* name depends on
+/// the mode ("TKE" vs "TKE proxy"), so storing the display string in a project
+/// would break restoring it in the other mode; labels::tkeSeriesId() is stored
+/// instead and resolved to a name only when drawing.
 
 QCPScatterStyle::ScatterShape markerShape(int shape)
 {
@@ -138,7 +142,7 @@ void PlotFrame::rebuildPointCombo()
     m_pointCombo->blockSignals(true);
     m_pointCombo->clear();
     for (const MeasurementPoint &point : m_model->points())
-        m_pointCombo->addItem(point.label(), point.id.toString());
+        m_pointCombo->addItem(pointLabel(point, m_model->mode()), point.id.toString());
     const int index = m_pointCombo->findData(current);
     m_pointCombo->setCurrentIndex(index >= 0 ? index : 0);
     m_pointCombo->blockSignals(false);
@@ -157,7 +161,7 @@ void PlotFrame::rebuildColumnCombo()
         if (name != roleName(Role::Time))
             m_columnCombo->addItem(name);
     }
-    m_columnCombo->addItem(kTkeColumn);
+    m_columnCombo->addItem(labels::tkeSeriesName(m_model->mode()), labels::tkeSeriesId());
     const int index = m_columnCombo->findText(current);
     if (index >= 0)
         m_columnCombo->setCurrentIndex(index);
@@ -180,9 +184,12 @@ void PlotFrame::pointSelectionChanged()
 
 QString PlotFrame::seriesLabel(const Series &series) const
 {
+    const QString column = series.column == labels::tkeSeriesId()
+                               ? labels::tkeSeriesName(m_model->mode())
+                               : series.column;
     const MeasurementPoint *point = m_model->point(series.pointId);
-    return point ? QStringLiteral("%1 | %2").arg(point->label(), series.column)
-                 : series.column;
+    return point ? QStringLiteral("%1 | %2").arg(pointLabel(*point, m_model->mode()), column)
+                 : column;
 }
 
 void PlotFrame::addSeries()
@@ -192,7 +199,10 @@ void PlotFrame::addSeries()
         return;
     Series series;
     series.pointId = pointId;
-    series.column = m_columnCombo->currentText();
+    // the derived TKE entry carries its stable id as user data; real columns
+    // are identified by their name
+    const QVariant columnData = m_columnCombo->currentData();
+    series.column = columnData.isValid() ? columnData.toString() : m_columnCombo->currentText();
     const QList<QColor> colors = paletteColors();
     series.style.lineColor = colors.at(m_series.size() % colors.size());
     series.style.markerColor = series.style.lineColor;
@@ -254,7 +264,7 @@ bool PlotFrame::seriesData(const Series &series, QVector<double> *t, QVector<dou
         return false;
 
     *t = processed->time;
-    if (series.column == kTkeColumn) {
+    if (series.column == labels::tkeSeriesId()) {
         *y = processed->tkeInst;
         return true;
     }
@@ -361,6 +371,10 @@ void PlotFrame::restoreState(const QJsonObject &state)
         Series series;
         series.pointId = QUuid::fromString(o[QStringLiteral("pointId")].toString());
         series.column = o[QStringLiteral("column")].toString();
+        // projects written before the TKE series got a stable id stored its
+        // display name; keep those curves working
+        if (series.column == labels::legacyTkeSeriesName())
+            series.column = labels::tkeSeriesId();
         series.style = SeriesStyle::fromJson(o[QStringLiteral("style")].toObject());
         if (m_model->point(series.pointId))
             m_series.append(series);

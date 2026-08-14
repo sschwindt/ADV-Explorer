@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 project(ADV-Explorer
-    VERSION 0.1.4
+    VERSION 0.2.0
     DESCRIPTION "Interactive analysis of acoustic Doppler velocimetry (ADV) measurements"
     HOMEPAGE_URL "https://github.com/sschwindt/ADV-Explorer"
     LANGUAGES C CXX
@@ -17,7 +17,10 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Concurrent PrintSupport)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Concurrent PrintSupport Network Sql)
+# QXlsx links Qt6::GuiPrivate but never looks it up itself; request it here so
+# the target exists on Qt installations that do not pull it in implicitly
+find_package(Qt6 COMPONENTS GuiPrivate QUIET)
 
 # ---------------------------------------------------------------------------
 # Third-party: QXlsx (MIT) for reading/writing xlsx workbooks
@@ -58,10 +61,30 @@ target_include_directories(kissfft PUBLIC third_party/kissfft)
 target_compile_definitions(kissfft PUBLIC kiss_fft_scalar=double)
 
 # ---------------------------------------------------------------------------
+# Third-party: miniz (MIT, vendored) to unpack SonTek FlowTracker2 .ft archives
+# ---------------------------------------------------------------------------
+add_library(miniz STATIC
+    third_party/miniz/miniz.c
+)
+target_include_directories(miniz PUBLIC third_party/miniz)
+target_compile_definitions(miniz PUBLIC
+    MINIZ_NO_STDIO
+    MINIZ_NO_TIME
+    MINIZ_NO_ARCHIVE_WRITING_APIS
+    # Qt already exports the zlib symbols; keep miniz on its own mz_ prefix
+    MINIZ_NO_ZLIB_COMPATIBLE_NAMES
+)
+
+# ---------------------------------------------------------------------------
 # Core library (no GUI dependencies except QtCore/Concurrent)
 # ---------------------------------------------------------------------------
 add_library(advcore STATIC
     src/core/AdvData.cpp
+    src/core/Crs.cpp
+    src/core/FormatRegistry.cpp
+    src/core/GeoPointImport.cpp
+    src/core/FlowTrackerCsvReader.cpp
+    src/core/FlowTrackerReader.cpp
     src/core/VnaReader.cpp
     src/core/CsvReader.cpp
     src/core/FlowStats.cpp
@@ -69,13 +92,16 @@ add_library(advcore STATIC
     src/core/Rotation.cpp
     src/core/MeasurementPoint.cpp
     src/core/ProjectModel.cpp
+    src/core/StatsLabels.cpp
     src/core/Project.cpp
     src/core/ProfileStatsExport.cpp
+    src/core/ZipArchive.cpp
 )
 target_include_directories(advcore PUBLIC src)
 target_link_libraries(advcore
     PUBLIC Qt6::Core Qt6::Gui Qt6::Concurrent
-    PRIVATE kissfft QXlsx::QXlsx
+    PRIVATE Qt6::Sql
+    PRIVATE kissfft miniz QXlsx::QXlsx
 )
 
 # ---------------------------------------------------------------------------
@@ -84,7 +110,11 @@ target_link_libraries(advcore
 set(APP_SOURCES
     src/main.cpp
     src/gui/MainWindow.cpp
+    src/gui/SiteView.h
     src/gui/FlumeView.cpp
+    src/gui/MapView.cpp
+    src/gui/CrsDialog.cpp
+    src/gui/FlowTrackerImportWizard.cpp
     src/gui/PointWizard.cpp
     src/gui/ImportWizard.cpp
     src/gui/PlotFrame.cpp
@@ -100,7 +130,7 @@ if(WIN32)
 endif()
 
 add_executable(adv-explorer WIN32 ${APP_SOURCES})
-target_link_libraries(adv-explorer PRIVATE advcore qcustomplot Qt6::Widgets)
+target_link_libraries(adv-explorer PRIVATE advcore qcustomplot Qt6::Widgets Qt6::Network)
 target_compile_definitions(adv-explorer PRIVATE
     ADV_EXPLORER_VERSION="${PROJECT_VERSION}"
     ADV_EXPLORER_URL="${PROJECT_HOMEPAGE_URL}"

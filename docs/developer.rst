@@ -11,16 +11,25 @@ Requirements
 * CMake >= 3.16 and a C++17 compiler (GCC >= 10 or MSVC >= 2019)
 * Qt 6.2 or newer development packages (Widgets, Concurrent, PrintSupport,
   Test, and the private headers needed by QXlsx)
+* Qt 6 Network and Sql, both part of ``qtbase``, for the field-mode basemap
+  and for reading GeoPackage files. No PROJ or GDAL is needed: the map
+  projections are implemented in ``src/core/Crs.cpp``.
+* The Qt 6 SQLite **driver plugin**. On Debian and Ubuntu this is the separate
+  package ``libqt6sql6-sqlite``, which ``qt6-base-dev`` does *not* pull in; the
+  official Qt installer and the Windows binaries ship it as part of qtbase.
+  Without it the application still builds and runs, but GeoPackage import is
+  disabled and says so.
 * Internet access at configure time: CMake FetchContent downloads
-  `QXlsx <https://github.com/QtExcel/QXlsx>`_ (MIT). QCustomPlot (GPLv3) and
-  KissFFT (BSD) are vendored in ``third_party/``.
+  `QXlsx <https://github.com/QtExcel/QXlsx>`_ (MIT). QCustomPlot (GPLv3),
+  KissFFT (BSD) and `miniz <https://github.com/richgel999/miniz>`_ (MIT) are
+  vendored in ``third_party/``.
 
 On Debian/Ubuntu:
 
 .. code-block:: bash
 
    sudo apt install cmake g++ qt6-base-dev qt6-base-dev-tools \
-       qt6-base-private-dev libgl1-mesa-dev
+       qt6-base-private-dev libqt6sql6-sqlite libgl1-mesa-dev
 
 Building
 --------
@@ -55,17 +64,44 @@ Architecture
 ------------
 
 * ``src/core/`` is a GUI-free static library (``advcore``): file readers
-  (``VnaReader``, ``CsvReader``), statistics (``FlowStats``), despiking
-  filters (``Despike``), probe alignment (``Rotation``), the measurement
-  point model (``MeasurementPoint``, ``ProjectModel``), project
-  serialization (``Project``), and xlsx export (``ProfileStatsExport``).
-* ``src/gui/`` contains the Qt Widgets front end: ``MainWindow``,
-  ``FlumeView`` (interactive top view), ``PointWizard``, ``ImportWizard``,
-  ``PlotFrame`` (QCustomPlot time series), ``ProfileFrame`` (vertical
-  profiles and alignment), and dialogs.
+  (``VnaReader``, ``CsvReader``, ``FlowTrackerReader`` and
+  ``FlowTrackerCsvReader``) reached through ``FormatRegistry``, the ZIP
+  wrapper ``ZipArchive``, statistics (``FlowStats``) and their mode-dependent
+  labels (``StatsLabels``), despiking filters (``Despike``), probe alignment
+  (``Rotation``), map projections (``Crs``), surveyed-position import
+  (``GeoPointImport``), the measurement point model (``MeasurementPoint``,
+  ``ProjectModel``, ``ProjectSettings``), project serialization (``Project``),
+  and xlsx export (``ProfileStatsExport``).
+* ``src/gui/`` contains the Qt Widgets front end: ``MainWindow``, the
+  ``SiteView`` base with its two implementations ``FlumeView`` (laboratory)
+  and ``MapView`` (field, OpenStreetMap tiles), ``PointWizard``,
+  ``ImportWizard``, ``FlowTrackerImportWizard``, ``CrsDialog``, ``PlotFrame``
+  (QCustomPlot time series), ``ProfileFrame`` (vertical profiles and
+  alignment), and dialogs.
 * ``tools/make_template.py`` regenerates ``templates/ADV-profiles.xlsx``;
   its column order must match
-  ``statsexport::profileTemplateColumns()``.
+  ``statsexport::profileTemplateColumns()``, which is therefore deliberately
+  independent of the campaign mode.
+
+Things that are easy to break
+-----------------------------
+
+* ``FlumeView`` scales its two axes independently so the channel fills the
+  panel. ``MapView`` must never do that: it is conformal by construction, and
+  shearing it would misplace every point against the basemap.
+* The derived TKE series is persisted under the stable identifier ``"@tke"``,
+  never under its display name, because that name depends on the mode. A
+  project saved in one mode would otherwise lose the curve in the other.
+* FlowTracker2 import computes each station position once and gives it to all
+  points of that vertical. Recomputing per point can differ in the last bits,
+  and profiles are keyed on coordinates formatted to four decimals, so one
+  vertical would split into several.
+* ``QFileInfo("x.ft.dat.csv").suffix()`` is ``"csv"``. Format dispatch must go
+  through ``formats::byFilePath()``, which matches the longest file-name
+  ending rather than the suffix.
+* ``tests/data`` holds binary fixtures (a ZIP and a GeoPackage). ``.gitattributes``
+  marks them binary; end-of-line conversion on a Windows checkout would corrupt
+  them silently.
 
 Releases and continuous integration
 -----------------------------------
@@ -76,6 +112,12 @@ Releases and continuous integration
   systems) packages a self-contained AppImage with linuxdeploy,
 * the Windows job (MSVC, Qt via aqtinstall) packages a portable zip with
   windeployqt.
+
+Both packaging steps then check that the result actually carries what field
+mode needs at runtime: the SQLite driver plugin for GeoPackage import and a
+TLS backend for the map tiles. Qt uses Schannel on Windows, while the AppImage
+additionally bundles OpenSSL, without which every tile request would fail
+silently.
 
 Pushing a tag ``v*`` attaches both packages to a GitHub release.
 

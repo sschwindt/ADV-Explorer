@@ -6,6 +6,7 @@
 #include "ImportWizard.h"
 
 #include "core/CsvReader.h"
+#include "core/FormatRegistry.h"
 #include "core/VnaReader.h"
 
 #include <QDialogButtonBox>
@@ -58,8 +59,7 @@ ImportWizard::ImportWizard(QWidget *parent)
 void ImportWizard::addFiles()
 {
     const QStringList files = QFileDialog::getOpenFileNames(
-        this, tr("Select ADV measurement files"), QString(),
-        tr("ADV data (*.vna *.csv *.txt *.dat);;All files (*)"));
+        this, tr("Select ADV measurement files"), QString(), formats::openFileFilter());
     for (const QString &filePath : files) {
         const int row = m_table->rowCount();
         m_table->insertRow(row);
@@ -103,17 +103,34 @@ void ImportWizard::tryAccept()
         point.waterDepth = okDepth ? depth : nan();
 
         QString error;
-        const QString suffix = QFileInfo(filePath).suffix().toLower();
-        if (suffix == QStringLiteral("vna")) {
-            point.data = VnaReader::readFile(filePath, &error);
-        } else {
-            QFile file(filePath);
-            QHash<Role, int> mapping;
-            if (file.open(QIODevice::ReadOnly))
-                mapping = CsvReader::guessMapping(
-                    CsvReader::preview(file.readAll()).columnNames);
-            point.data = CsvReader::readFile(filePath, mapping, &error);
+        const FileFormat *format = formats::byFilePath(filePath);
+        if (!format) {
+            QMessageBox::warning(this, windowTitle(),
+                                 tr("%1 is not a recognised measurement format.").arg(filePath));
+            return;
         }
+        if (format->multiPoint) {
+            QMessageBox::warning(
+                this, windowTitle(),
+                tr("%1 holds a whole cross section rather than a single point.\n"
+                   "Use Import > Import FlowTracker2 survey for it.")
+                    .arg(QFileInfo(filePath).fileName()));
+            return;
+        }
+
+        QFile file(filePath);
+        if (!file.open(QIODevice::ReadOnly)) {
+            QMessageBox::warning(this, windowTitle(),
+                                 tr("Cannot open %1:\n%2").arg(filePath, file.errorString()));
+            return;
+        }
+        const QByteArray bytes = file.readAll();
+        QHash<Role, int> mapping;
+        if (format->needsColumnMapping)
+            mapping = CsvReader::guessMapping(CsvReader::preview(bytes).columnNames);
+        point.data = format->read(bytes, mapping, &error);
+        if (!point.data.isEmpty())
+            point.data.setSourceFileName(QFileInfo(filePath).completeBaseName());
         if (point.data.isEmpty()) {
             QMessageBox::warning(this, windowTitle(),
                                  tr("Cannot read %1:\n%2").arg(filePath, error));
