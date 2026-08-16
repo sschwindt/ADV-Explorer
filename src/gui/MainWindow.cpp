@@ -119,6 +119,29 @@ void MainWindow::showEvent(QShowEvent *event)
     applySplitterProportions();
 }
 
+bool MainWindow::siteViewIsUsable() const
+{
+    // Releases 0.2.0 to 0.2.2 all shipped with no flume and no map, each time
+    // because the site view ended up with no space in the splitter. Checking its
+    // own height() is not enough: a widget that never made it into the layout
+    // still reports the geometry it was born with. What matters is that it sits
+    // in the splitter, that it is visible, and that the splitter gave it room.
+    if (!m_siteView) {
+        qWarning("no site view exists");
+        return false;
+    }
+    const int index = m_splitter->indexOf(m_siteView);
+    const int pane = m_splitter->sizes().value(0);
+    if (index != 0 || !m_siteView->isVisible() || pane < 50) {
+        qWarning("site view not usable: splitter index %d (want 0), visible %d, "
+                 "pane height %d (want >= 50). The flume or the map would be "
+                 "missing from the window.",
+                 index, int(m_siteView->isVisible()), pane);
+        return false;
+    }
+    return true;
+}
+
 void MainWindow::applySplitterProportions()
 {
     const int total = m_splitter->height();
@@ -860,17 +883,8 @@ bool MainWindow::captureDocScreenshots(const QString &outputDir)
     applySplitterProportions();
     QCoreApplication::processEvents();
 
-    // Guard against shipping a window with no flume or map in it. That happened
-    // in 0.2.0 and 0.2.1: the splitter was divided before any layout had run,
-    // which Qt 6.11 tolerated and the Qt 6.2 of the packaged build did not, so
-    // it was invisible in local testing. CI runs this mode against the same Qt
-    // the release is built with, which turns that into a build failure.
-    if (!m_siteView || m_siteView->height() < 50) {
-        qWarning("site view collapsed (height %d): the flume or map would be "
-                 "missing from the window",
-                 m_siteView ? m_siteView->height() : -1);
+    if (!siteViewIsUsable())
         return false;
-    }
 
     // The laboratory example is the documentation scene as well, so the two
     // cannot drift apart. It reads from the embedded resources, which also means
@@ -954,6 +968,9 @@ bool MainWindow::captureDocScreenshots(const QString &outputDir)
     applyPlotSettings();
 
     m_tabs->setCurrentIndex(0);
+    QCoreApplication::processEvents();
+    if (!siteViewIsUsable()) // the mode switch rebuilds the site view
+        return false;
     ok = snap(this, QStringLiteral("field-mode.png")) && ok;
 
     // --- guided tour ----------------------------------------------------------
