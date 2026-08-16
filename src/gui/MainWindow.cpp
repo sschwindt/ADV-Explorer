@@ -112,11 +112,31 @@ void MainWindow::showEvent(QShowEvent *event)
         return;
     m_splitProportioned = true;
     // Only now does the splitter have a height to divide. Doing this in the
-    // constructor divided the window height instead, before any layout had run,
-    // and on Qt 6.2 that left the site view with no height at all: the flume and
-    // the map simply were not there. Qt 6.11 happened to survive it, which is
-    // why it only showed up in the packaged builds.
+    // constructor divided the window height instead, before any layout had run.
     applySplitterProportions();
+}
+
+bool MainWindow::siteViewIsUsable() const
+{
+    // Releases 0.2.0 to 0.2.2 all shipped with no flume and no map, each time
+    // because the site view ended up with no space in the splitter. Checking its
+    // own height() is not enough: a widget that never made it into the layout
+    // still reports the geometry it was born with. What matters is that it sits
+    // in the splitter, that it is visible, and that the splitter gave it room.
+    if (!m_siteView) {
+        qWarning("no site view exists");
+        return false;
+    }
+    const int index = m_splitter->indexOf(m_siteView);
+    const int pane = m_splitter->sizes().value(0);
+    if (index != 0 || !m_siteView->isVisible() || pane < 50) {
+        qWarning("site view not usable: splitter index %d (want 0), visible %d, "
+                 "pane height %d (want >= 50). The flume or the map would be "
+                 "missing from the window.",
+                 index, int(m_siteView->isVisible()), pane);
+        return false;
+    }
+    return true;
 }
 
 void MainWindow::applySplitterProportions()
@@ -269,8 +289,17 @@ void MainWindow::applyMode(Mode mode)
 
     // replaceWidget keeps the splitter proportions the user set
     QWidget *old = m_splitter->replaceWidget(0, view);
-    if (old)
+    if (old) {
         old->deleteLater();
+    } else {
+        // it refuses in some situations and then the view is in no layout at
+        // all; put it in the splitter by hand rather than lose it
+        m_splitter->insertWidget(0, view);
+    }
+    // A splitter gives a hidden child zero size and no handle, and not every Qt
+    // version shows the widget that replaceWidget put in. That is precisely how
+    // 0.2.0 to 0.2.2 shipped with no flume and no map, so do not rely on it.
+    view->show();
     m_splitter->setStretchFactor(0, 2);
     m_siteView = view;
 
@@ -860,17 +889,8 @@ bool MainWindow::captureDocScreenshots(const QString &outputDir)
     applySplitterProportions();
     QCoreApplication::processEvents();
 
-    // Guard against shipping a window with no flume or map in it. That happened
-    // in 0.2.0 and 0.2.1: the splitter was divided before any layout had run,
-    // which Qt 6.11 tolerated and the Qt 6.2 of the packaged build did not, so
-    // it was invisible in local testing. CI runs this mode against the same Qt
-    // the release is built with, which turns that into a build failure.
-    if (!m_siteView || m_siteView->height() < 50) {
-        qWarning("site view collapsed (height %d): the flume or map would be "
-                 "missing from the window",
-                 m_siteView ? m_siteView->height() : -1);
+    if (!siteViewIsUsable())
         return false;
-    }
 
     // The laboratory example is the documentation scene as well, so the two
     // cannot drift apart. It reads from the embedded resources, which also means
@@ -954,6 +974,9 @@ bool MainWindow::captureDocScreenshots(const QString &outputDir)
     applyPlotSettings();
 
     m_tabs->setCurrentIndex(0);
+    QCoreApplication::processEvents();
+    if (!siteViewIsUsable()) // the mode switch rebuilds the site view
+        return false;
     ok = snap(this, QStringLiteral("field-mode.png")) && ok;
 
     // --- guided tour ----------------------------------------------------------

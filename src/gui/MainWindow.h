@@ -66,6 +66,9 @@ private:
     /// Give the site view 2/5 of the splitter height. Must run once the splitter
     /// actually has a height; see showEvent().
     void applySplitterProportions();
+    /// Is the site view actually in the layout, visible, and given room? The
+    /// screenshot mode refuses to run when it is not; see the definition.
+    bool siteViewIsUsable() const;
     /// Replace the project with one of the built-in examples and offer the tour.
     void loadExample(adv::Mode mode);
     /// Ask before an action throws away measurement points the user may want.

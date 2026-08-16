@@ -111,12 +111,15 @@ Things that are easy to break
 * ``tests/data`` holds binary fixtures (a ZIP and a GeoPackage). ``.gitattributes``
   marks them binary; end-of-line conversion on a Windows checkout would corrupt
   them silently.
-* Anything that depends on layout has to wait for it. ``MainWindow`` used to
-  divide its splitter in the constructor, before the widgets had a geometry;
-  Qt 6.11 tolerated that and the Qt 6.2 of the packaged build did not, so
-  releases 0.2.0 and 0.2.1 shipped with no flume and no map. The proportions
-  are applied in ``showEvent()`` now, the site views keep a minimum height and
-  the splitter's children are not collapsible.
+* ``applyMode()`` must call ``show()`` on the site view after handing it to
+  ``QSplitter::replaceWidget()``. On the Qt 6.2 the AppImage bundles that call
+  leaves the new widget hidden, and a splitter gives a hidden child zero size
+  and no handle, so neither the minimum height nor a non-collapsible splitter
+  helps. That is why releases 0.2.0 to 0.2.2 had no flume and no map, and why
+  Qt 6.4 and newer never showed the fault.
+* Anything that depends on layout has to wait for it: ``MainWindow`` divides
+  its splitter in ``showEvent()``, not in the constructor where the widgets
+  have no geometry yet.
 * The offscreen platform and a real X server lay the window out differently, so
   an offscreen run proves nothing about the packaged application. The
   ``--screenshots`` mode refuses to write anything when the site view has
