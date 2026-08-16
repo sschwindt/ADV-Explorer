@@ -112,10 +112,7 @@ void MainWindow::showEvent(QShowEvent *event)
         return;
     m_splitProportioned = true;
     // Only now does the splitter have a height to divide. Doing this in the
-    // constructor divided the window height instead, before any layout had run,
-    // and on Qt 6.2 that left the site view with no height at all: the flume and
-    // the map simply were not there. Qt 6.11 happened to survive it, which is
-    // why it only showed up in the packaged builds.
+    // constructor divided the window height instead, before any layout had run.
     applySplitterProportions();
 }
 

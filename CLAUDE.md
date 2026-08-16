@@ -204,12 +204,13 @@ users run the release zip. Things that have already gone wrong once:
   requirement low. The development machine runs a much newer Qt, so newer APIs compile here
   and break in CI. `M_PI` is only available on MSVC via `<QtMath>`, which every user of it
   includes.
-- **Qt version differences are not only about compiling.** Releases 0.2.0 and 0.2.1 shipped
-  with no flume and no map: `MainWindow` divided the splitter in its constructor, before any
-  layout had run, which Qt 6.11 tolerated and the packaged Qt 6.2 did not. Layout-dependent
-  work belongs in `showEvent` (see `applySplitterProportions`), the site view keeps a
-  `setMinimumHeight(200)` and the splitter has `setChildrenCollapsible(false)` so no Qt
-  version can squeeze it away.
+- **Qt version differences are not only about compiling.** Releases 0.2.0 to 0.2.2 shipped
+  with no flume and no map. `QSplitter::replaceWidget()` leaves the widget it inserts hidden
+  on the Qt 6.2 the AppImage bundles, and **a splitter gives a hidden child zero size and no
+  handle**, which is why neither `setMinimumHeight(200)` nor `setChildrenCollapsible(false)`
+  rescued it. `applyMode()` therefore calls `view->show()` after replacing, and falls back to
+  `insertWidget()` if `replaceWidget()` returns null. Qt 6.4 and 6.11 both show it by
+  themselves, so nothing local reproduced it.
 - **The offscreen platform is not a substitute for a real display.** It laid the same window
   out correctly while xcb did not. `--screenshots` refuses to write anything when the site
   view has collapsed, and CI runs it under `xvfb` against the release Qt; that check is the
