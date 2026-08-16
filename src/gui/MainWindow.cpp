@@ -292,8 +292,17 @@ void MainWindow::applyMode(Mode mode)
 
     // replaceWidget keeps the splitter proportions the user set
     QWidget *old = m_splitter->replaceWidget(0, view);
-    if (old)
+    if (old) {
         old->deleteLater();
+    } else {
+        // it refuses in some situations and then the view is in no layout at
+        // all; put it in the splitter by hand rather than lose it
+        m_splitter->insertWidget(0, view);
+    }
+    // A splitter gives a hidden child zero size and no handle, and not every Qt
+    // version shows the widget that replaceWidget put in. That is precisely how
+    // 0.2.0 to 0.2.2 shipped with no flume and no map, so do not rely on it.
+    view->show();
     m_splitter->setStretchFactor(0, 2);
     m_siteView = view;
 
