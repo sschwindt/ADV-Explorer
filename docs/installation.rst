@@ -1,21 +1,16 @@
 Installation
 ============
 
-ADV-Explorer ships as ready-to-run executables. There is nothing to compile
-and **no administrator (admin/root) rights are required**: both packages run
-from any folder in your user profile.
+ADV-Explorer ships as ready-to-run executables. There is nothing to compile and **no administrator (admin/root) rights are required**: it runs from any folder in your user profile.
 
 Requirements
 ------------
 
 * **Windows**: Windows 10 or 11, 64-bit (x86_64). About 150 MB of disk space.
-* **Linux**: a 64-bit (x86_64) Debian-like distribution from roughly 2022 or
-  newer, for example Debian 12, Ubuntu 22.04+, or Linux Mint 21+.
-* No Python, Qt, or other software needs to be installed; everything is
-  bundled with the executables.
-* An internet connection is optional. It is used only to fetch map tiles in
-  field mode; everything else, including the coordinate grid and all analysis,
-  works offline.
+* **Linux**: a 64-bit (x86_64) Debian12+-like distribution from roughly 2022 or
+  newer, for instance Ubuntu 22.04+, or Linux Mint 21+.
+* ADV-Explorer is stand-alone and does **not need Python, Matlab, or other software**.
+* An internet connection is optional. It is used only to fetch map tiles in field mode; everything else, including the coordinate grid and all analysis, works offline.
 
 Windows 10/11
 -------------
@@ -61,10 +56,7 @@ Linux
 Updating
 --------
 
-Simply download the newest release file and replace the old one. Project files
-written by an older version keep opening: the format is versioned and older
-layouts are read unchanged. A project written by a *newer* version than the one
-you are running is refused with a clear message rather than opened partially.
+Simply download the newest release file and replace the old one. Project files written by an older version keep opening: the format is versioned and older layouts are read unchanged. A project written by a *newer* version than the one you are running is refused with a clear message rather than opened partially.
 
 Building from source
 --------------------

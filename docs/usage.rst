@@ -1,40 +1,31 @@
 Usage
 =====
 
-The main window consists of the interactive flume top view (top) and two
-analysis tabs (bottom): *Time series* and *Vertical profiles*.
+The main window consists of the interactive flume top view (top) and two analysis tabs (bottom): *Time series* and *Vertical profiles*.
 
 .. figure:: img/main-window.png
    :alt: Main window with flume view and time series
 
-   *Main window: flume top view with measurement point markers and a time
-   series frame with three superposed data series.*
+   *Main window: flume top view with measurement point markers and a time series frame with three superposed data series.*
 
 .. _examples:
 
 Start with an example
 ---------------------
 
-The quickest way to see what the application does is to open a ready-made
-project from the *Help* menu, without having any measurements of your own:
+The quickest way to see what the application does is to open a ready-made project from the *Help* menu, without having any measurements of your own:
 
-* **Help > Load example: Lab (Vectrino)** builds a laboratory project: a
+* **Help > Load example: Lab (Vectrino)** builds a lab flume project: a
   vertical of five heights at one position in the flume, plus a further point
   downstream, with three series already plotted and the velocity despiking
   filter switched on.
 * **Help > Load example: Field (FlowTracker)** builds a field project: a real
   SonTek FlowTracker2 cross section of an Isar side channel, six verticals over
-  4.2 m of tape, georeferenced in ETRS89 / UTM zone 32N and drawn on the map.
+  4.2 m of tape, georeferenced in ETRS89 / UTM zone 32N (EPSG: 25832) and drawn on the map.
 
-Both are embedded in the application, so they work offline and on a machine that
-has never seen a measurement file. Loading one replaces the current project, and
-you are asked first if that would discard anything.
+Both help-examples are embedded in the application, so they work offline on a computer that has never seen a measurement file. Loading one example replaces the current project, and you are asked first if that would discard anything.
 
-A **guided tour** opens with the example and steps through the main functions,
-highlighting the part of the window each step describes. It is not modal: you
-can click around, try things and close it whenever you like. Reopen it with
-*Help > Restart guided tour*, and note that its steps follow the campaign mode
-you are in, because what matters differs between the flume and the river.
+A **guided tour** opens with the example and steps through the main functions, highlighting the part of the window each step describes. It is not modal: you can click around, try things and close it whenever you like. Reopen it with *Help > Restart guided tour*, and note that its steps follow the campaign mode you are in, because what matters differs between the flume and the river.
 
 .. figure:: img/guided-tour.png
    :alt: The guided tour panel beside the field example
@@ -224,10 +215,10 @@ is needed. Supported systems are:
 * ``EPSG:31466`` to ``31469``, DHDN 3-degree Gauss-Krueger
 
 ETRS89 is treated as identical to WGS 84. The two drift apart by a few
-decimetres, which shifts the whole survey uniformly against the basemap and does
+decimetres, which shifts the survey uniformly against the basemap and does
 not distort the geometry between measurement points. Gauss-Krueger additionally
 needs a datum change, which is done with one countrywide transformation and is
-accurate to roughly a metre; the coordinate dialog says so when you pick one.
+accurate to approx. a metre; the coordinate dialog says so when you pick one.
 Codes outside these ranges are refused with the supported ranges spelled out,
 rather than silently accepted and misplaced.
 
@@ -274,39 +265,20 @@ between stations, so it cannot position them.
 Why TKE is called a proxy here
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-A FlowTracker2 point is roughly 60 samples taken at 2 Hz over 30 s. That
-resolves nothing above 1 Hz and averages over half a minute, so the variance it
-yields is not the turbulent kinetic energy a laboratory record measures. It is
-still a useful relative indicator between stations of the same survey, which is
-why it is computed rather than hidden, but it is labelled **TKE proxy**
-everywhere, including in the exported workbooks, so field and laboratory numbers
-are never compared as though they were the same quantity.
+A FlowTracker2 point is roughly 60 samples taken at 2 Hz over 30 s. That resolves nothing above 1 Hz and averages over half a minute, so the variance it yields is not the turbulent kinetic energy a laboratory record measures. It is still a useful relative indicator between stations of the same survey, which is why it is computed rather than hidden, but it is labelled **TKE proxy** everywhere, including in the exported workbooks, so field and laboratory numbers are never compared as though they were the same quantity. For the same reason the dissipation rate is reported as *n/a (sampling rate too low)*. Estimating it needs a resolved inertial subrange and at least 256 samples per spectral segment, and a FlowTracker2 standard point provides neither.
 
-For the same reason the dissipation rate is reported as *n/a (sampling rate too
-low)*. Estimating it needs a resolved inertial subrange and at least 256 samples
-per spectral segment, and a FlowTracker2 point provides neither.
+.. note::
 
-Despiking defaults also differ. The instrument reports a correlation score on a
-0 to 1 scale, rescaled here to 0 to 100 for consistency; its observed range is
-about 5 to 72 with a median near 35, so the Vectrino default threshold of 70
-would reject nearly every sample. Field imports therefore start with the
-correlation filter switched off and the SNR filter set to the threshold recorded
-in the file itself.
+   To yield somewhat reasonable turbulence quantification in rivers with a FlowTracker2, the 30-s measurement time should be extended to at least 2, ideally 5 minutes (in the device settings). The larger and deeper the river, the longer the measurements should be. The longer survey time is offset later through more robust statistics that reduce ambiguous, lengthy discussions around measurement interpretation.
+
+
+Despiking defaults also differ. The instrument reports a correlation score on a 0 to 1 scale, rescaled here to 0 to 100 for consistency; its observed range is approx. 5 to 72 with a median near 35, so the Vectrino default threshold of 70 would reject nearly every sample. Field imports therefore start with the correlation filter switched off and the SNR filter set to the threshold recorded in the file itself.
 
 Basemap and offline use
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Tiles come from ``https://tile.openstreetmap.org`` by default. ADV-Explorer
-follows the OpenStreetMap Foundation tile usage policy: it identifies itself, it
-requests only the tiles actually on screen with a small number of requests in
-flight, it caches them on disk between sessions, and it always shows the
-attribution, which is included in exported images as well.
+Tiles come from ``https://tile.openstreetmap.org`` by default. ADV-Explorer follows the OpenStreetMap Foundation tile usage policy: it identifies itself, it requests only the tiles actually on screen with a small number of requests in flight, it caches them on disk between sessions, and it always shows the attribution, which is included in exported images as well.
 
-Turn *Online basemap* off, or simply work without a connection, and the map
-falls back to a coordinate grid with a scale bar. Panning, zooming, placing and
-editing points all keep working, which matters when the survey is being reviewed
-in the field. If a tile server refuses requests, the application stops asking for
-the rest of the session instead of retrying.
+Turn *Online basemap* off, or simply work without a connection, and the map falls back to a coordinate grid with a scale bar. Panning, zooming, placing and editing points all keep working, which matters when the survey is being reviewed in the field. If a tile server refuses requests, the application stops asking for the rest of the session instead of retrying.
 
-Map data is (c) OpenStreetMap contributors, available under the Open Database
-License.
+Map data is (c) OpenStreetMap contributors, available under the Open Database License.
