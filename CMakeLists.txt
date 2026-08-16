@@ -81,6 +81,9 @@ target_compile_definitions(miniz PUBLIC
 add_library(advcore STATIC
     src/core/AdvData.cpp
     src/core/Crs.cpp
+    src/core/ExampleProject.cpp
+    # sample measurements for Help > Load example; see src/examples.qrc
+    src/examples.qrc
     src/core/FormatRegistry.cpp
     src/core/GeoPointImport.cpp
     src/core/FlowTrackerCsvReader.cpp
@@ -115,6 +118,7 @@ set(APP_SOURCES
     src/gui/MapView.cpp
     src/gui/CrsDialog.cpp
     src/gui/FlowTrackerImportWizard.cpp
+    src/gui/GuidedTour.cpp
     src/gui/PointWizard.cpp
     src/gui/ImportWizard.cpp
     src/gui/PlotFrame.cpp

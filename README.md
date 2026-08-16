@@ -45,6 +45,12 @@ usage with screenshots, developer guide)
     above the bed. Whole cross sections are imported at once and positioned
     either along a surveyed cross-section line or from a GeoPackage or
     easting/northing text file.
+- **Built-in examples and a guided tour** under *Help*: `Load example: Lab
+  (Vectrino)` and `Load example: Field (FlowTracker)` open ready-made projects
+  from sample data embedded in the application, and a dockable tour then walks
+  through the main functions, highlighting each part of the window as it goes.
+  Nothing needs to be downloaded and no measurement files of your own are
+  required.
 
 ## Requirements
 

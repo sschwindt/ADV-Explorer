@@ -85,6 +85,9 @@ private:
     /// Project coordinates to world pixels at the current zoom; returns false
     /// when no usable coordinate system is set.
     bool modelToWorld(double x, double y, QPointF *world) const;
+    /// Same projection against an explicit world size, so an extent can be
+    /// measured before the zoom that would define worldSize() is chosen.
+    bool modelToWorldAtSize(double x, double y, double size, QPointF *world) const;
     bool worldToModel(const QPointF &world, double *x, double *y) const;
     QPointF worldToWidget(const QPointF &world) const;
     QPointF widgetToWorld(const QPointF &widget) const;
@@ -124,6 +127,8 @@ private:
     QSet<QString> m_failed;
     int m_inFlight = 0;
     bool m_offline = false;   ///< set after a hard failure; stops retrying
+    /// A fit was asked for before the widget had a geometry to fit against.
+    bool m_pendingFit = false;
     bool m_tlsUnavailable = false; ///< this build cannot do HTTPS at all
     bool m_basemapEnabled = true;
     QString m_tileUrl;

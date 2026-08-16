@@ -46,6 +46,19 @@ struct DespikeConfig {
     }
 };
 
+/// Despiking defaults for a FlowTracker2 field record.
+///
+/// They deliberately differ from the laboratory defaults. The instrument's
+/// correlation score runs on a different scale from the Vectrino percentage
+/// (observed roughly 5 to 72, median near 35), so the usual threshold of 70
+/// would reject nearly every sample; and with about 60 samples per point the
+/// statistical filters have too little to work with to be trusted. The
+/// instrument has already flagged its own spikes, which the reader applies.
+///
+/// `snrThresholdDb` is the instrument's own quality-control threshold, taken
+/// from the survey; pass NaN when it is unknown.
+DespikeConfig fieldDespikeDefaults(double snrThresholdDb);
+
 /// Input series for despiking; w2, corrAvg and snrAvg may be empty.
 struct DespikeInput {
     QVector<double> u, v, w1, w2;

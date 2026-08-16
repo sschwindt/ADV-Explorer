@@ -12,6 +12,7 @@
 #include "core/Crs.h"
 #include "core/CsvReader.h"
 #include "core/Despike.h"
+#include "core/ExampleProject.h"
 #include "core/FlowStats.h"
 #include "core/FlowTrackerCsvReader.h"
 #include "core/FlowTrackerReader.h"
@@ -72,6 +73,8 @@ private slots:
     void crsLookup();
     void crsReference();
     void crsRoundTrip();
+    void clearDropsCrossSections();
+    void embeddedExamplesLoad();
 };
 
 void TestCore::vnaReader()
@@ -1067,6 +1070,112 @@ void TestCore::crsRoundTrip()
     // latitudes beyond the square tile pyramid are clamped, not wrapped
     crs::wgs84ToWebMercator(0.0, 89.0, &mx, &my);
     QVERIFY(std::isfinite(my));
+}
+
+/// A cleared model must not keep the previous survey's cross sections. They used
+/// to survive, so a new project still drew the old section, and the map fitted
+/// its view to both and showed the new stations as a speck.
+void TestCore::clearDropsCrossSections()
+{
+    ProjectModel model;
+    model.setMode(Mode::Field);
+    QVERIFY(model.setEpsg(25832));
+
+    CrossSection section;
+    section.name = QStringLiteral("first");
+    section.leftChainage = 0.0;
+    section.rightChainage = 10.0;
+    section.leftX = 600000.0;
+    section.leftY = 5300000.0;
+    section.rightX = 600010.0;
+    section.rightY = 5300000.0;
+    model.addCrossSection(section);
+    QCOMPARE(model.crossSections().size(), 1);
+
+    QSignalSpy spy(&model, &ProjectModel::crossSectionsChanged);
+    model.clear();
+    QCOMPARE(model.crossSections().size(), 0);
+    QCOMPARE(spy.count(), 1);
+
+    // clearing an already empty model must stay quiet
+    model.clear();
+    QCOMPARE(spy.count(), 1);
+}
+
+/// The examples behind Help > Load example are built from data embedded in the
+/// binary, so this also proves the resources survive into a build that has no
+/// input-data/ directory next to it, which is every released package.
+void TestCore::embeddedExamplesLoad()
+{
+    {
+        ProjectModel model;
+        QString error;
+        QVERIFY2(examples::loadLab(&model, &error), qPrintable(error));
+        QCOMPARE(model.mode(), Mode::Lab);
+
+        // five heights of one vertical plus a single point downstream
+        QCOMPARE(model.points().size(), 6);
+        const QString vertical = MeasurementPoint::makeXyKey(0.5, 0.0);
+        int onVertical = 0;
+        for (const MeasurementPoint &point : model.points()) {
+            QVERIFY(!point.data.isEmpty());
+            QVERIFY(point.data.columnOfRole(Role::U) >= 0);
+            QVERIFY(std::isfinite(point.z));
+            if (point.xyKey() == vertical)
+                ++onVertical;
+        }
+        QCOMPARE(onVertical, 5);
+
+        // the plot frame is preconfigured, so the example opens with curves
+        const QJsonArray frames =
+            model.plotSettings().value(QStringLiteral("plotFrames")).toArray();
+        QCOMPARE(frames.size(), 1);
+        QCOMPARE(frames.at(0).toObject().value(QStringLiteral("series")).toArray().size(), 3);
+    }
+
+    {
+        ProjectModel model;
+        QString error;
+        QVERIFY2(examples::loadField(&model, &error), qPrintable(error));
+        QCOMPARE(model.mode(), Mode::Field);
+        QCOMPARE(model.epsg(), 25832);
+        QVERIFY(!model.points().isEmpty());
+        QCOMPARE(model.crossSections().size(), 1);
+
+        const CrossSection section = model.crossSections().first();
+        QVERIFY(section.isValid());
+        // the drawn line must be exactly as long as the tape the survey records,
+        // which is what the import wizard checks when a user does this by hand
+        const double tape = std::fabs(section.rightChainage - section.leftChainage);
+        const double drawn = std::hypot(section.rightX - section.leftX,
+                                        section.rightY - section.leftY);
+        QVERIFY2(std::fabs(drawn - tape) < 1e-6,
+                 qPrintable(QStringLiteral("tape %1 m, drawn %2 m").arg(tape).arg(drawn)));
+
+        // every point sits on the section, carries the field despiking defaults
+        // and keeps z as height above the bed
+        const DespikeConfig expected = fieldDespikeDefaults(nan());
+        QSet<QString> verticals;
+        for (const MeasurementPoint &point : model.points()) {
+            QVERIFY(!point.data.isEmpty());
+            QVERIFY(std::isfinite(point.z));
+            QVERIFY(std::isfinite(point.chainage));
+            QVERIFY(!point.stationName.isEmpty());
+            QCOMPARE(point.despike.corrEnabled, expected.corrEnabled);
+            QCOMPARE(point.despike.replace, DespikeConfig::Replace::NaN);
+
+            double x = 0.0;
+            double y = 0.0;
+            QVERIFY(section.positionAt(point.chainage, &x, &y));
+            QVERIFY(std::fabs(point.x - x) < 1e-9);
+            QVERIFY(std::fabs(point.y - y) < 1e-9);
+            verticals.insert(point.xyKey());
+        }
+        // one key per station: computing the position per point instead of per
+        // station would split a vertical into several profiles
+        QCOMPARE(verticals.size(), model.crossSections().first().bed.size()
+                                       - 2 /* the two bank stations hold no velocity */);
+    }
 }
 
 QTEST_GUILESS_MAIN(TestCore)

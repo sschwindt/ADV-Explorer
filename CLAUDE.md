@@ -157,6 +157,24 @@ most a couple of requests in flight, visible tiles only with no prefetching, a d
 a hard stop after 429/418, and the attribution painted in `paintEvent` so it survives into
 exported PNGs.
 
+## Built-in examples and the guided tour
+
+*Help* holds the documentation link, the two example loaders and the tour, and it
+absorbed the former *About* menu.
+
+- `examples::loadLab` / `loadField` (`src/core/ExampleProject.cpp`) build the demo
+  projects from `src/examples.qrc`. The qrc is compiled into **advcore, not the
+  app**, so `tst_core` can cover the loaders; a static library only keeps a
+  resource initialiser something references, hence the explicit
+  `Q_INIT_RESOURCE(examples)`. Never make the examples read `input-data/` at
+  runtime: released packages ship the executable alone.
+- `captureDocScreenshots` uses `loadLab` for its scene, so the documentation and
+  the example cannot drift apart, and the screenshot mode no longer depends on the
+  working directory.
+- `GuidedTour` is a non-modal `QDockWidget` plus a `TourHighlight` overlay that is
+  a child of the **main window**, not of the target, so it can be drawn over the
+  views and cannot disturb QCustomPlot's own painting. Steps are rebuilt per mode.
+
 ## Cross-platform gotchas
 
 Both platforms are first-class: Linux is the development machine, Windows is where most

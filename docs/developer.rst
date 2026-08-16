@@ -71,13 +71,22 @@ Architecture
   (``Rotation``), map projections (``Crs``), surveyed-position import
   (``GeoPointImport``), the measurement point model (``MeasurementPoint``,
   ``ProjectModel``, ``ProjectSettings``), project serialization (``Project``),
-  and xlsx export (``ProfileStatsExport``).
+  the built-in demonstration projects (``ExampleProject``), and xlsx export
+  (``ProfileStatsExport``).
 * ``src/gui/`` contains the Qt Widgets front end: ``MainWindow``, the
   ``SiteView`` base with its two implementations ``FlumeView`` (laboratory)
   and ``MapView`` (field, OpenStreetMap tiles), ``PointWizard``,
   ``ImportWizard``, ``FlowTrackerImportWizard``, ``CrsDialog``, ``PlotFrame``
   (QCustomPlot time series), ``ProfileFrame`` (vertical profiles and
-  alignment), and dialogs.
+  alignment), ``GuidedTour`` (the walkthrough dock and its highlight
+  overlay), and dialogs.
+* ``src/examples.qrc`` embeds the sample measurements behind
+  *Help > Load example*. It is compiled into ``advcore`` rather than into the
+  application, so the loaders can be tested; because a static library only
+  keeps a resource initialiser something references, ``ExampleProject.cpp``
+  calls ``Q_INIT_RESOURCE(examples)`` explicitly. The same laboratory example
+  is the scene the documentation screenshots are taken from, so the two cannot
+  drift apart.
 * ``tools/make_template.py`` regenerates ``templates/ADV-profiles.xlsx``;
   its column order must match
   ``statsexport::profileTemplateColumns()``, which is therefore deliberately
@@ -102,6 +111,14 @@ Things that are easy to break
 * ``tests/data`` holds binary fixtures (a ZIP and a GeoPackage). ``.gitattributes``
   marks them binary; end-of-line conversion on a Windows checkout would corrupt
   them silently.
+* ``ProjectModel::clear()`` has to drop the cross sections along with the
+  points. They used to survive, so a new project kept drawing the previous
+  survey's section, and ``MapView::fitToPoints()`` framed both at once.
+* ``MapView::fitToPoints()`` picks the zoom as well as the centre, and measures
+  the extent at zoom 0 because world coordinates depend on the zoom it is about
+  to choose. A fit asked for before the widget has a geometry is deferred to the
+  next resize; fitting against a stub size lands several zoom levels too far
+  out.
 
 Releases and continuous integration
 -----------------------------------

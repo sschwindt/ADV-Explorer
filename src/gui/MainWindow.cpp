@@ -9,6 +9,7 @@
 #include "CrsDialog.h"
 #include "FlumeView.h"
 #include "FlowTrackerImportWizard.h"
+#include "GuidedTour.h"
 #include "ImportWizard.h"
 #include "MapView.h"
 #include "PlotFrame.h"
@@ -17,6 +18,7 @@
 
 #include "core/Crs.h"
 #include "core/CsvReader.h"
+#include "core/ExampleProject.h"
 #include "core/ProfileStatsExport.h"
 #include "core/Project.h"
 #include "core/ProjectModel.h"
@@ -24,6 +26,7 @@
 #include <QActionGroup>
 #include <QApplication>
 #include <QCloseEvent>
+#include <QDesktopServices>
 #include <QDir>
 #include <QFile>
 #include <QFileDialog>
@@ -39,6 +42,7 @@
 #include <QStatusBar>
 #include <QTabWidget>
 #include <QTextStream>
+#include <QUrl>
 #include <QVBoxLayout>
 #include <QWidgetAction>
 
@@ -202,9 +206,19 @@ void MainWindow::buildMenus()
     connect(w1Action, &QAction::triggered, this, [this]() { m_model->setWRole(Role::W1); });
     connect(w2Action, &QAction::triggered, this, [this]() { m_model->setWRole(Role::W2); });
 
-    // --- About ---------------------------------------------------------------
-    QMenu *aboutMenu = menuBar()->addMenu(tr("&About"));
-    aboutMenu->addAction(tr("&About ADV-Explorer..."), this, &MainWindow::showAbout);
+    // --- Help ----------------------------------------------------------------
+    // About lives here rather than in a menu of its own, which is where users
+    // look for it and keeps two near-identical menus from sitting side by side.
+    QMenu *helpMenu = menuBar()->addMenu(tr("&Help"));
+    helpMenu->addAction(tr("Online &documentation..."), this, &MainWindow::openDocumentation);
+    helpMenu->addSeparator();
+    helpMenu->addAction(tr("Load example: &Lab (Vectrino)"), this,
+                        &MainWindow::loadLabExample);
+    helpMenu->addAction(tr("Load example: &Field (FlowTracker)"), this,
+                        &MainWindow::loadFieldExample);
+    helpMenu->addAction(tr("&Restart guided tour"), this, &MainWindow::startGuidedTour);
+    helpMenu->addSeparator();
+    helpMenu->addAction(tr("&About ADV-Explorer..."), this, &MainWindow::showAbout);
 }
 
 void MainWindow::applyMode(Mode mode)
@@ -596,6 +610,215 @@ void MainWindow::showAbout()
     dialog.exec();
 }
 
+void MainWindow::openDocumentation()
+{
+    const QUrl url(QStringLiteral("https://adv-explorer.readthedocs.io/"));
+    if (!QDesktopServices::openUrl(url)) {
+        QMessageBox::information(
+            this, tr("Online documentation"),
+            tr("No web browser could be started. The documentation is at:\n\n%1")
+                .arg(url.toString()));
+    }
+}
+
+bool MainWindow::confirmReplaceProject()
+{
+    if (m_model->points().isEmpty())
+        return true;
+    const auto answer = QMessageBox::question(
+        this, tr("Load example"),
+        tr("Loading an example replaces the current project, including its %1 "
+           "measurement points. Any unsaved changes are lost.\n\nContinue?")
+            .arg(m_model->points().size()),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    return answer == QMessageBox::Yes;
+}
+
+void MainWindow::loadLabExample()
+{
+    loadExample(Mode::Lab);
+}
+
+void MainWindow::loadFieldExample()
+{
+    loadExample(Mode::Field);
+}
+
+void MainWindow::loadExample(Mode mode)
+{
+    if (!confirmReplaceProject())
+        return;
+
+    QString error;
+    const bool ok = mode == Mode::Field ? examples::loadField(m_model, &error)
+                                        : examples::loadLab(m_model, &error);
+    if (!ok) {
+        QMessageBox::critical(this, tr("Load example"),
+                              error.isEmpty() ? tr("The example could not be loaded.")
+                                              : error);
+        return;
+    }
+
+    m_projectPath.clear();
+    setWindowTitle(mode == Mode::Field
+                       ? tr("ADV-Explorer - Example: field (FlowTracker)")
+                       : tr("ADV-Explorer - Example: laboratory (Vectrino)"));
+    applyPlotSettings();
+    statusBar()->showMessage(
+        tr("Example loaded: %1 measurement points. Save it under File > Save "
+           "project as to keep your changes.")
+            .arg(m_model->points().size()));
+
+    startGuidedTour();
+}
+
+void MainWindow::startGuidedTour()
+{
+    if (!m_tour) {
+        m_tour = new GuidedTour(this);
+        connect(m_tour, &GuidedTour::tabRequested, this, [this](int index) {
+            if (index >= 0 && index < m_tabs->count())
+                m_tabs->setCurrentIndex(index);
+        });
+        addDockWidget(Qt::RightDockWidgetArea, m_tour);
+
+        // the dock asks for width of its own, which on a small display would
+        // push the window past the screen edge; take the space from the views
+        // instead, exactly as the constructor does for the initial size
+        if (const QScreen *screen = QGuiApplication::primaryScreen()) {
+            const QSize available = screen->availableGeometry().size();
+            resize(qMin(width(), available.width() - 40),
+                   qMin(height(), available.height() - 60));
+        }
+    }
+    configureTour();
+    m_tour->start();
+}
+
+void MainWindow::configureTour()
+{
+    if (!m_tour)
+        return;
+
+    const bool field = m_model->mode() == Mode::Field;
+    QWidget *plotArea = m_plotFrames.isEmpty()
+                            ? static_cast<QWidget *>(m_tabs)
+                            : static_cast<QWidget *>(m_plotFrames.first());
+
+    QList<GuidedTour::Step> steps;
+    auto step = [&steps](const QString &title, const QString &body, QWidget *target,
+                         int tab = -1) {
+        GuidedTour::Step s;
+        s.title = title;
+        s.body = body;
+        s.target = target;
+        s.tabIndex = tab;
+        steps.append(s);
+    };
+
+    if (field) {
+        step(tr("The map"),
+             tr("<p>Each marker is a <b>vertical</b> of the cross section, and the "
+                "badge counts the measurement depths it holds. The dashed line is "
+                "the surveyed cross section itself.</p>"
+                "<p>Drag to pan, use the wheel to zoom. Turn <i>Online basemap</i> "
+                "off to work without a connection: the coordinate grid and the "
+                "scale bar keep the view quantitative either way.</p>"),
+             m_siteView, 0);
+        step(tr("Coordinates"),
+             tr("<p>Point x and y are <b>easting and northing</b> in the project "
+                "coordinate system, here ETRS89 / UTM zone 32N. Change it under "
+                "<i>Project &gt; Coordinate system</i>.</p>"
+                "<p>The z coordinate means the same as in the laboratory: height "
+                "above the bed, in metres.</p>"),
+             m_siteView, 0);
+    } else {
+        step(tr("The flume"),
+             tr("<p>This is a top view of the flume, with the inlet on the left and "
+                "the flow running to the right. Each circle is a <b>measurement "
+                "location</b>.</p>"
+                "<p>Click anywhere to place a new point, or click an existing one "
+                "to edit its height, water depth, time window and filters.</p>"),
+             m_siteView, 0);
+        step(tr("Points and verticals"),
+             tr("<p>Several points sharing an x-y location form a <b>vertical "
+                "profile</b>. The example holds five heights at one location plus a "
+                "single point further downstream.</p>"
+                "<p>Setting the water depth at one point applies it to every point "
+                "of that vertical.</p>"),
+             m_siteView, 0);
+    }
+
+    step(tr("Time series"),
+         tr("<p>Pick a point and a data series, then press <i>Add</i> to plot it. "
+            "Series from different points can be superimposed, and <i>Style</i> "
+            "changes line and marker appearance.</p>"
+            "<p>Besides the measured columns there is a derived series, %1, "
+            "computed as 0.5 (var U + var V + var W).</p>")
+             .arg(field ? tr("<b>TKE proxy</b>") : tr("<b>TKE</b>")),
+         plotArea, 0);
+
+    if (field) {
+        step(tr("Why \"proxy\""),
+             tr("<p>A FlowTracker2 point is roughly 60 samples at 2 Hz over 30 s. "
+                "That resolves nothing above 1 Hz, so the variance it yields is not "
+                "the turbulent kinetic energy a laboratory record measures.</p>"
+                "<p>It stays a useful <i>relative</i> indicator between stations of "
+                "one survey, which is why it is labelled as a proxy everywhere "
+                "instead of being hidden or silently renamed. Dissipation is "
+                "reported as not estimable for the same reason.</p>"),
+             plotArea, 0);
+    }
+
+    step(tr("Despiking"),
+         tr("<p>Open a point from the %1 and use the filter section: correlation "
+            "and SNR thresholds, a velocity threshold, and the Goring &amp; Nikora "
+            "method. Removed samples are either left as gaps or interpolated.</p>"
+            "<p>%2</p>")
+             .arg(field ? tr("map") : tr("flume"),
+                  field ? tr("Field imports start with the correlation filter "
+                             "<b>off</b>: the instrument reports correlation on a "
+                             "different scale, where the laboratory default of 70 "
+                             "would reject nearly every sample.")
+                        : tr("The example enables the velocity threshold, which "
+                             "removes samples further than three standard "
+                             "deviations from the mean.")),
+         m_siteView, 0);
+
+    step(tr("Vertical profiles"),
+         tr("<p>The second tab plots the profile of a vertical against z or z/h, "
+            "with the statistics of each height beside it: means, standard "
+            "deviations, skewness and kurtosis, the Reynolds stresses and %1.</p>"
+            "<p>This is also where <b>probe alignment</b> is corrected: heading, "
+            "pitch and roll can be proposed automatically so the mean V and W of "
+            "the profile go to zero, or set by hand.</p>")
+             .arg(field ? tr("the TKE proxy") : tr("TKE and dissipation")),
+         m_profileFrame, 1);
+
+    step(tr("Exporting"),
+         tr("<p>Under <i>Export</i> you can write the shown series as CSV, the "
+            "current frame as a 300 dpi PNG%1, and per-point or per-profile "
+            "statistics as xlsx, including into the bundled profile template that "
+            "adds velocity magnitude and direction.</p>"
+            "<p>Under <i>File &gt; Save project as</i> the whole analysis, raw data "
+            "included, goes into a single .advProj file that opens on any "
+            "computer.</p>")
+             .arg(field ? tr(", the map with its OpenStreetMap attribution")
+                        : QString()),
+         menuBar(), -1);
+
+    step(tr("That is the tour"),
+         tr("<p>You can reopen it any time from <i>Help &gt; Restart guided "
+            "tour</i>, and load the other example from the same menu.</p>"
+            "<p>The full documentation, including the file formats and the "
+            "definitions behind every statistic, is at "
+            "<a href=\"https://adv-explorer.readthedocs.io/\">"
+            "adv-explorer.readthedocs.io</a>.</p>"),
+         nullptr, -1);
+
+    m_tour->setSteps(steps);
+}
+
 bool MainWindow::captureDocScreenshots(const QString &outputDir)
 {
     if (!QDir().mkpath(outputDir))
@@ -606,84 +829,15 @@ bool MainWindow::captureDocScreenshots(const QString &outputDir)
     // would otherwise make the published screenshots vary with the build host.
     resize(1280, 860);
 
-    // demo vertical profile from the u-v-w tables shipped in input-data/;
-    // the u component is scaled per depth to a log-law-like shape so the
-    // profile view is illustrative (screenshots only, never analysis output)
-    auto addCsvPoint = [this](const QString &filePath, double x, double y,
-                              double z, double depth, double uScale) -> QUuid {
-        QHash<Role, int> mapping;
-        mapping.insert(Role::U, 0);
-        mapping.insert(Role::V, 1);
-        mapping.insert(Role::W1, 2);
-        QString error;
-        MeasurementPoint point;
-        point.data = CsvReader::readFile(filePath, mapping, &error);
-        if (point.data.isEmpty())
-            return QUuid();
-        point.data.synthesizeTime(200.0);
-        const int uColumn = point.data.columnOfRole(Role::U);
-        if (uColumn >= 0 && uScale != 1.0) {
-            for (double &u : point.data.column(uColumn))
-                u *= uScale;
-        }
-        point.x = x;
-        point.y = y;
-        point.z = z;
-        point.waterDepth = depth;
-        point.despike.velEnabled = true;
-        return m_model->addPoint(point);
-    };
-
-    QList<QUuid> profileIds;
-    for (int i = 1; i <= 5; ++i) {
-        const double z = 0.05 * i;
-        const double uScale = 0.6 + 0.4 * std::pow(z / 0.30, 0.4);
-        const QUuid id = addCsvPoint(QStringLiteral("input-data/vel%1.dat").arg(i),
-                                     0.5, 0.0, z, 0.30, uScale);
-        if (!id.isNull())
-            profileIds.append(id);
-    }
-    addCsvPoint(QStringLiteral("input-data/vel7.dat"), 1.5, 0.2, 0.10, 0.28, 1.0);
-    if (profileIds.size() < 2)
+    // The laboratory example is the documentation scene as well, so the two
+    // cannot drift apart. It reads from the embedded resources, which also means
+    // the screenshot mode no longer depends on being run from the repository
+    // root the way it used to.
+    QString exampleError;
+    if (!examples::loadLab(m_model, &exampleError)) {
+        qWarning("cannot build the laboratory example: %s", qPrintable(exampleError));
         return false;
-
-    // preconfigure plots: two velocity series plus the TKE series
-    auto makeSeries = [](const QUuid &id, const QString &column, const QString &color) {
-        QJsonObject style;
-        style[QStringLiteral("lineColor")] = color;
-        style[QStringLiteral("markerColor")] = color;
-        QJsonObject series;
-        series[QStringLiteral("pointId")] = id.toString(QUuid::WithoutBraces);
-        series[QStringLiteral("column")] = column;
-        series[QStringLiteral("style")] = style;
-        return series;
-    };
-    QJsonArray series;
-    series.append(makeSeries(profileIds.at(0), QStringLiteral("u (m/s)"),
-                             QStringLiteral("#0072B2")));
-    series.append(makeSeries(profileIds.at(0), QStringLiteral("w1 (m/s)"),
-                             QStringLiteral("#009E73")));
-    series.append(makeSeries(profileIds.at(3), QStringLiteral("u (m/s)"),
-                             QStringLiteral("#E69F00")));
-    QJsonObject frame;
-    frame[QStringLiteral("palette")] = 0;
-    frame[QStringLiteral("series")] = series;
-    QJsonArray frames;
-    frames.append(frame);
-
-    QJsonObject profileState;
-    profileState[QStringLiteral("profile")] = MeasurementPoint::makeXyKey(0.5, 0.0);
-    profileState[QStringLiteral("u")] = true;
-    profileState[QStringLiteral("v")] = true;
-    profileState[QStringLiteral("w")] = true;
-    profileState[QStringLiteral("relative")] = false;
-
-    QJsonObject settings;
-    settings[QStringLiteral("plotFrames")] = frames;
-    settings[QStringLiteral("profileFrame")] = profileState;
-    settings[QStringLiteral("flumeLength")] = 2.0;
-    settings[QStringLiteral("flumeWidth")] = 0.4;
-    m_model->setPlotSettings(settings);
+    }
     applyPlotSettings();
 
     auto snap = [this, &outputDir](QWidget *widget, const QString &name) {
@@ -758,6 +912,21 @@ bool MainWindow::captureDocScreenshots(const QString &outputDir)
 
     m_tabs->setCurrentIndex(0);
     ok = snap(this, QStringLiteral("field-mode.png")) && ok;
+
+    // --- guided tour ----------------------------------------------------------
+    // Shown on the real field example rather than the composed scene above, so
+    // the picture is exactly what Help > Load example gives the reader.
+    if (!examples::loadField(m_model, &exampleError)) {
+        qWarning("cannot build the field example: %s", qPrintable(exampleError));
+        return false;
+    }
+    applyPlotSettings();
+    m_tabs->setCurrentIndex(0);
+    startGuidedTour();
+    QCoreApplication::processEvents();
+    ok = snap(this, QStringLiteral("guided-tour.png")) && ok;
+    if (m_tour)
+        m_tour->close();
 
     return ok;
 }

@@ -26,6 +26,7 @@
 #include <QtMath>
 
 #include <cmath>
+#include <limits>
 #include <utility>
 
 using namespace adv;
@@ -44,6 +45,12 @@ constexpr int kMaxZoom = 23;
 /// panning responsive without ever looking like a bulk download.
 constexpr int kMaxInFlight = 2;
 constexpr int kMarkerRadius = 7;
+/// Breathing room left around the survey when the view is fitted to it.
+constexpr double kFitMargin = 48.0;
+/// Zoom used when the survey has no extent to fit, roughly a street view.
+constexpr int kSinglePointZoom = 19;
+/// Below this the widget has no usable geometry yet and a fit is deferred.
+constexpr int kMinFitExtent = 64;
 /// Movement beyond this many pixels makes a press a pan rather than a click.
 constexpr int kDragThreshold = 4;
 
@@ -148,7 +155,7 @@ double MapView::worldSize() const
     return double(kTileSize) * std::pow(2.0, m_zoom);
 }
 
-bool MapView::modelToWorld(double x, double y, QPointF *world) const
+bool MapView::modelToWorldAtSize(double x, double y, double size, QPointF *world) const
 {
     const int epsg = m_model->epsg();
     if (epsg == 0)
@@ -158,12 +165,16 @@ bool MapView::modelToWorld(double x, double y, QPointF *world) const
     if (!crs::toWgs84(epsg, x, y, &lon, &lat))
         return false;
 
-    const double size = worldSize();
     const double wx = (lon + 180.0) / 360.0 * size;
     const double sinLat = std::sin(qDegreesToRadians(qBound(-85.05112878, lat, 85.05112878)));
     const double wy = (0.5 - std::log((1.0 + sinLat) / (1.0 - sinLat)) / (4.0 * M_PI)) * size;
     *world = QPointF(wx, wy);
     return true;
+}
+
+bool MapView::modelToWorld(double x, double y, QPointF *world) const
+{
+    return modelToWorldAtSize(x, y, worldSize(), world);
 }
 
 bool MapView::worldToModel(const QPointF &world, double *x, double *y) const
@@ -569,24 +580,70 @@ const MapView::Marker *MapView::markerAt(const QPointF &widgetPos) const
 
 void MapView::fitToPoints()
 {
-    QVector<QPointF> worlds;
-    for (const MeasurementPoint &point : m_model->points()) {
-        QPointF world;
-        if (modelToWorld(point.x, point.y, &world))
-            worlds.append(world);
+    // The fit is only meaningful once the widget has its real geometry. Loading
+    // a project or an example happens before the layout has run, and fitting
+    // against a stub size picks a zoom several levels too far out, so defer to
+    // the resize that follows.
+    if (width() < kMinFitExtent || height() < kMinFitExtent) {
+        m_pendingFit = true;
+        return;
     }
-    if (worlds.isEmpty())
+    m_pendingFit = false;
+
+    // Measured at zoom 0, so the extent can be compared against the widget
+    // before a zoom is chosen; world coordinates scale by 2^zoom from here.
+    constexpr double kUnitWorld = 256.0;
+
+    QVector<QPointF> units;
+    auto collect = [this, &units](double x, double y) {
+        QPointF unit;
+        if (modelToWorldAtSize(x, y, kUnitWorld, &unit))
+            units.append(unit);
+    };
+    for (const MeasurementPoint &point : m_model->points())
+        collect(point.x, point.y);
+    // include the section ends, otherwise a survey whose stations sit on one
+    // half of the tape is framed off to the side of the line that is drawn
+    for (const CrossSection &section : m_model->crossSections()) {
+        if (section.isValid()) {
+            collect(section.leftX, section.leftY);
+            collect(section.rightX, section.rightY);
+        }
+    }
+    if (units.isEmpty())
         return;
 
-    double minX = worlds.first().x(), maxX = minX;
-    double minY = worlds.first().y(), maxY = minY;
-    for (const QPointF &world : worlds) {
-        minX = qMin(minX, world.x());
-        maxX = qMax(maxX, world.x());
-        minY = qMin(minY, world.y());
-        maxY = qMax(maxY, world.y());
+    double minX = units.first().x(), maxX = minX;
+    double minY = units.first().y(), maxY = minY;
+    for (const QPointF &unit : units) {
+        minX = qMin(minX, unit.x());
+        maxX = qMax(maxX, unit.x());
+        minY = qMin(minY, unit.y());
+        maxY = qMax(maxY, unit.y());
     }
-    m_center = QPointF((minX + maxX) / 2.0, (minY + maxY) / 2.0);
+
+    // Choose the zoom before the centre: both the centre and everything else in
+    // world coordinates depend on it. Without this the view only ever panned,
+    // which left a survey a few metres wide as a dot at whatever zoom happened
+    // to be current.
+    const double availableW = qMax(64.0, width() - 2.0 * kFitMargin);
+    const double availableH = qMax(64.0, height() - 2.0 * kFitMargin);
+    const double spanX = maxX - minX;
+    const double spanY = maxY - minY;
+    if (spanX > 0.0 || spanY > 0.0) {
+        const double scaleX = spanX > 0.0 ? availableW / spanX
+                                          : std::numeric_limits<double>::max();
+        const double scaleY = spanY > 0.0 ? availableH / spanY
+                                          : std::numeric_limits<double>::max();
+        const double scale = qMin(scaleX, scaleY);
+        m_zoom = qBound(kMinZoom, int(std::floor(std::log2(scale))), kMaxZoom);
+    } else {
+        // a single station carries no extent; show it at a close, readable zoom
+        m_zoom = qBound(kMinZoom, kSinglePointZoom, kMaxZoom);
+    }
+
+    const double factor = std::pow(2.0, m_zoom);
+    m_center = QPointF((minX + maxX) / 2.0 * factor, (minY + maxY) / 2.0 * factor);
 }
 
 void MapView::centerOnWgs84(double longitude, double latitude, int zoom)
@@ -685,6 +742,8 @@ void MapView::wheelEvent(QWheelEvent *event)
 void MapView::resizeEvent(QResizeEvent *event)
 {
     SiteView::resizeEvent(event);
+    if (m_pendingFit)
+        fitToPoints(); // deferred from before the widget had its geometry
     rebuildMarkers();
     requestVisibleTiles();
 }

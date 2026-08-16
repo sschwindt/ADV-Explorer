@@ -10,6 +10,7 @@
 #include <QMainWindow>
 #include <QUuid>
 
+class GuidedTour;
 class PlotFrame;
 class ProfileFrame;
 class SiteView;
@@ -52,9 +53,19 @@ private slots:
     void createPointAt(double x, double y);
     void editPoint(const QUuid &pointId);
     void showAbout();
+    void openDocumentation();
+    void loadLabExample();
+    void loadFieldExample();
+    void startGuidedTour();
 
 private:
     void buildMenus();
+    /// Replace the project with one of the built-in examples and offer the tour.
+    void loadExample(adv::Mode mode);
+    /// Ask before an action throws away measurement points the user may want.
+    bool confirmReplaceProject();
+    /// Rebuild the tour steps for the campaign mode currently shown.
+    void configureTour();
     /// Put the site view matching the campaign mode into the splitter.
     void applyMode(adv::Mode mode);
     void collectPlotSettings();
@@ -76,4 +87,5 @@ private:
     QAction *m_w2Action = nullptr;
     QAction *m_importFtAction = nullptr;
     QAction *m_exportMapAction = nullptr;
+    GuidedTour *m_tour = nullptr;
 };

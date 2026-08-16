@@ -79,7 +79,14 @@ void ProjectModel::clear()
     m_corrections.clear();
     m_cache.clear();
     m_plotSettings = QJsonObject();
+    // Cross sections belong to the project too. Leaving them behind used to draw
+    // the previous survey's section over a new one and, because the map fits its
+    // view to everything it knows about, framed the new stations as a speck.
+    const bool hadSections = !m_crossSections.isEmpty();
+    m_crossSections.clear();
     emit modelReset();
+    if (hadSections)
+        emit crossSectionsChanged();
 }
 
 void ProjectModel::setWaterDepthAt(double x, double y, double waterDepth)

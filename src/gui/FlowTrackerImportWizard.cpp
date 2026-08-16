@@ -34,28 +34,6 @@ using namespace adv;
 
 namespace {
 
-/// Field defaults differ from the laboratory ones for concrete reasons:
-/// FlowTracker2 reports a correlation score on a 0 to 1 scale whose observed
-/// range is roughly 0.05 to 0.72, so the Vectrino default of 70 percent would
-/// reject nearly every sample; and with 60 samples the statistical filters have
-/// too little to work with to be trusted. The instrument has already flagged its
-/// own spikes, which the reader applies.
-DespikeConfig fieldDespikeDefaults(double snrThresholdDb)
-{
-    DespikeConfig config;
-    config.corrEnabled = false;
-    config.corrThreshold = 30.0;
-    config.snrEnabled = std::isfinite(snrThresholdDb) && snrThresholdDb > 0.0;
-    config.snrThreshold = config.snrEnabled ? snrThresholdDb : 10.0;
-    config.velEnabled = false;
-    config.gnMethod = DespikeConfig::GnMethod::Off;
-    config.pstEnabled = false;
-    // leaving the instrument's rejected samples as gaps keeps the statistics
-    // equal to the instrument's own; interpolating would fill them back in
-    config.replace = DespikeConfig::Replace::NaN;
-    return config;
-}
-
 QDoubleSpinBox *makeCoordinateSpin(QWidget *parent)
 {
     auto *spin = new QDoubleSpinBox(parent);

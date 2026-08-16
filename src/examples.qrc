@@ -1,0 +1,24 @@
+<!--
+    Sample measurements for Help > Load example, embedded rather than read from
+    input-data/ so the examples also work in the AppImage and the Windows zip,
+    which ship the executable alone.
+
+    This is a separate resource file from resources.qrc because it is compiled
+    into the advcore static library, where the linker only pulls in a resource
+    initialiser that something references: ExampleProject.cpp does that
+    explicitly with Q_INIT_RESOURCE(examples).
+
+    Keep the selection small. The laboratory tables compress to about 90 kB, and
+    the .ft archive is already deflated and adds about 175 kB.
+-->
+<RCC>
+    <qresource prefix="/examples">
+        <file alias="lab/vel1.dat">../input-data/vel1.dat</file>
+        <file alias="lab/vel2.dat">../input-data/vel2.dat</file>
+        <file alias="lab/vel3.dat">../input-data/vel3.dat</file>
+        <file alias="lab/vel4.dat">../input-data/vel4.dat</file>
+        <file alias="lab/vel5.dat">../input-data/vel5.dat</file>
+        <file alias="lab/vel7.dat">../input-data/vel7.dat</file>
+        <file alias="field/isar.ft">../input-data/flowtracker-data/30_09_25-1_20250930.ft</file>
+    </qresource>
+</RCC>

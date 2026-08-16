@@ -270,4 +270,21 @@ DespikeResult apply(const DespikeInput &input, const DespikeConfig &config)
 }
 
 } // namespace despike
+
+DespikeConfig fieldDespikeDefaults(double snrThresholdDb)
+{
+    DespikeConfig config;
+    config.corrEnabled = false;
+    config.corrThreshold = 30.0;
+    config.snrEnabled = std::isfinite(snrThresholdDb) && snrThresholdDb > 0.0;
+    config.snrThreshold = config.snrEnabled ? snrThresholdDb : 10.0;
+    config.velEnabled = false;
+    config.gnMethod = DespikeConfig::GnMethod::Off;
+    config.pstEnabled = false;
+    // leaving the instrument's rejected samples as gaps keeps the statistics
+    // equal to the instrument's own; interpolating would fill them back in
+    config.replace = DespikeConfig::Replace::NaN;
+    return config;
+}
+
 } // namespace adv

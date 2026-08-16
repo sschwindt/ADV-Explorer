@@ -10,6 +10,40 @@ analysis tabs (bottom): *Time series* and *Vertical profiles*.
    *Main window: flume top view with measurement point markers and a time
    series frame with three superposed data series.*
 
+.. _examples:
+
+Start with an example
+---------------------
+
+The quickest way to see what the application does is to open a ready-made
+project from the *Help* menu, without having any measurements of your own:
+
+* **Help > Load example: Lab (Vectrino)** builds a laboratory project: a
+  vertical of five heights at one position in the flume, plus a further point
+  downstream, with three series already plotted and the velocity despiking
+  filter switched on.
+* **Help > Load example: Field (FlowTracker)** builds a field project: a real
+  SonTek FlowTracker2 cross section of an Isar side channel, six verticals over
+  4.2 m of tape, georeferenced in ETRS89 / UTM zone 32N and drawn on the map.
+
+Both are embedded in the application, so they work offline and on a machine that
+has never seen a measurement file. Loading one replaces the current project, and
+you are asked first if that would discard anything.
+
+A **guided tour** opens with the example and steps through the main functions,
+highlighting the part of the window each step describes. It is not modal: you
+can click around, try things and close it whenever you like. Reopen it with
+*Help > Restart guided tour*, and note that its steps follow the campaign mode
+you are in, because what matters differs between the flume and the river.
+
+.. figure:: img/guided-tour.png
+   :alt: The guided tour panel beside the field example
+
+   *The field example with the guided tour open. The tour panel docks on the
+   right and frames the widget the current step is about.*
+
+*Help > Online documentation* opens this manual in your browser.
+
 The flume coordinate system
 ---------------------------
 
