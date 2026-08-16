@@ -22,7 +22,8 @@ jobs:
           # GeoPackage import silently disappears from the AppImage
           sudo apt-get install -y qt6-base-dev qt6-base-dev-tools qt6-base-private-dev \
             libqt6sql6-sqlite \
-            libgl1-mesa-dev libxkbcommon-dev libfuse2
+            libgl1-mesa-dev libxkbcommon-dev libfuse2 \
+            xvfb libxcb-cursor0
 
       - name: Configure
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
@@ -32,6 +33,20 @@ jobs:
 
       - name: Test
         run: QT_QPA_PLATFORM=offscreen ctest --test-dir build --output-on-failure
+
+      - name: Check the window renders on a real display
+        run: |
+          # The screenshot mode builds the example project, lays the window out
+          # and refuses to write anything if the site view has collapsed. It runs
+          # under a real X server rather than the offscreen platform because the
+          # two lay out differently, and against the same Qt the AppImage ships,
+          # which is where a collapsed flume or map went unnoticed before.
+          xvfb-run -a -s "-screen 0 1920x1080x24" \
+            ./build/adv-explorer --screenshots "$RUNNER_TEMP/shots"
+          for name in main-window field-mode guided-tour vertical-profiles; do
+            test -s "$RUNNER_TEMP/shots/$name.png" \
+              || { echo "$name.png was not produced"; exit 1; }
+          done
 
       - name: Package AppImage
         run: |

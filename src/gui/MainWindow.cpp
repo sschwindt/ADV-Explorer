@@ -42,6 +42,7 @@
 #include <QStatusBar>
 #include <QTabWidget>
 #include <QTextStream>
+#include <QTimer>
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QWidgetAction>
@@ -92,13 +93,41 @@ MainWindow::MainWindow(QWidget *parent)
     // site view gets 2/5 of the height (20% more than the earlier 1/3)
     m_splitter->setStretchFactor(0, 2);
     m_splitter->setStretchFactor(1, 3);
-    m_splitter->setSizes({2 * height() / 5, 3 * height() / 5});
+    // Neither pane may be collapsed away. The proportions below are applied on
+    // the first show, but a splitter is free to squeeze a collapsible child to
+    // nothing, and a window without its flume or map is not a usable window.
+    m_splitter->setChildrenCollapsible(false);
     setCentralWidget(m_splitter);
 
     buildMenus();
     applyMode(m_model->mode());
     connect(m_model, &ProjectModel::modeChanged, this, &MainWindow::applyMode);
     statusBar()->showMessage(tr("Click into the flume to define a measurement point."));
+}
+
+void MainWindow::showEvent(QShowEvent *event)
+{
+    QMainWindow::showEvent(event);
+    if (m_splitProportioned)
+        return;
+    m_splitProportioned = true;
+    // Only now does the splitter have a height to divide. Doing this in the
+    // constructor divided the window height instead, before any layout had run,
+    // and on Qt 6.2 that left the site view with no height at all: the flume and
+    // the map simply were not there. Qt 6.11 happened to survive it, which is
+    // why it only showed up in the packaged builds.
+    applySplitterProportions();
+}
+
+void MainWindow::applySplitterProportions()
+{
+    const int total = m_splitter->height();
+    if (total <= 0) {
+        // layout has still not run; try again once the event loop has caught up
+        QTimer::singleShot(0, this, &MainWindow::applySplitterProportions);
+        return;
+    }
+    m_splitter->setSizes({2 * total / 5, 3 * total / 5});
 }
 
 void MainWindow::buildMenus()
@@ -828,6 +857,20 @@ bool MainWindow::captureDocScreenshots(const QString &outputDir)
     // the screen, and the offscreen platform advertises one of its own, which
     // would otherwise make the published screenshots vary with the build host.
     resize(1280, 860);
+    applySplitterProportions();
+    QCoreApplication::processEvents();
+
+    // Guard against shipping a window with no flume or map in it. That happened
+    // in 0.2.0 and 0.2.1: the splitter was divided before any layout had run,
+    // which Qt 6.11 tolerated and the Qt 6.2 of the packaged build did not, so
+    // it was invisible in local testing. CI runs this mode against the same Qt
+    // the release is built with, which turns that into a build failure.
+    if (!m_siteView || m_siteView->height() < 50) {
+        qWarning("site view collapsed (height %d): the flume or map would be "
+                 "missing from the window",
+                 m_siteView ? m_siteView->height() : -1);
+        return false;
+    }
 
     // The laboratory example is the documentation scene as well, so the two
     // cannot drift apart. It reads from the embedded resources, which also means

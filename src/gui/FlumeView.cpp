@@ -56,6 +56,10 @@ FlumeView::FlumeView(ProjectModel *model, QWidget *parent)
     , m_view(new QGraphicsView(this))
     , m_scene(new QGraphicsScene(this))
 {
+    // matches MapView: the site view must keep a usable height whatever the
+    // splitter is asked to do with it
+    setMinimumHeight(200);
+
     auto *controls = new QHBoxLayout;
     controls->setContentsMargins(4, 4, 4, 0);
     controls->addWidget(new QLabel(tr("Flume length (m):")));

@@ -58,8 +58,14 @@ private slots:
     void loadFieldExample();
     void startGuidedTour();
 
+protected:
+    void showEvent(QShowEvent *event) override;
+
 private:
     void buildMenus();
+    /// Give the site view 2/5 of the splitter height. Must run once the splitter
+    /// actually has a height; see showEvent().
+    void applySplitterProportions();
     /// Replace the project with one of the built-in examples and offer the tour.
     void loadExample(adv::Mode mode);
     /// Ask before an action throws away measurement points the user may want.
@@ -88,4 +94,5 @@ private:
     QAction *m_importFtAction = nullptr;
     QAction *m_exportMapAction = nullptr;
     GuidedTour *m_tour = nullptr;
+    bool m_splitProportioned = false; ///< the one-time split on first show
 };
