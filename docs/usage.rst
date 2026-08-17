@@ -119,7 +119,10 @@ Vertical profiles and probe alignment
 
 The *Vertical profiles* tab plots the mean U, V, and W velocities of all
 points sharing one x-y position against z, or against the relative depth z/h
-once water depths are set.
+once water depths are set. Only the streamwise component U is joined by a
+line. V and W are drawn as markers alone, because they are near-zero
+residuals whose sign usually flips from height to height: a line through them
+would suggest a vertical structure that the measurement does not resolve.
 
 .. figure:: img/vertical-profiles.png
    :alt: Vertical profile view with statistics panel
@@ -273,6 +276,26 @@ A FlowTracker2 point is roughly 60 samples taken at 2 Hz over 30 s. That resolve
 
 
 Despiking defaults also differ. The instrument reports a correlation score on a 0 to 1 scale, rescaled here to 0 to 100 for consistency; its observed range is approx. 5 to 72 with a median near 35, so the Vectrino default threshold of 70 would reject nearly every sample. Field imports therefore start with the correlation filter switched off and the SNR filter set to the threshold recorded in the file itself.
+
+Reading V and W of a field survey
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In a field profile, V and W are frequently of the same size as U, or larger,
+and that is usually the measurement rather than an error:
+
+* In slack water near a bank the flow is a few millimetres per second in every
+  direction, so no component dominates and the flow direction is meaningless.
+  FlowTracker2 says the same thing through its own flow angle and its
+  ``BoundaryInterference`` warning for such points.
+* The vertical component is the noisiest one the instrument delivers: its
+  reported standard error for Z is roughly twice the one for X and Y, a
+  consequence of the beam geometry. The scatter of W over 60 samples is
+  therefore largely instrument noise, not turbulence.
+
+Both are reasons to compare U between stations first and to treat V and W as
+indicators of alignment and data quality. The probe alignment correction
+described above works in field mode too.
+
 
 Basemap and offline use
 ~~~~~~~~~~~~~~~~~~~~~~~

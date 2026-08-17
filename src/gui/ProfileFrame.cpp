@@ -25,6 +25,7 @@
 #include <QVBoxLayout>
 #include <QtMath>
 
+#include <algorithm>
 #include <cmath>
 
 using namespace adv;
@@ -214,11 +215,20 @@ void ProfileFrame::rebuildPlot()
     m_statsPanel->clear();
 
     const QString key = currentProfileKey();
-    const QList<QUuid> ids = m_model->profilePoints(key);
+    QList<QUuid> ids = m_model->profilePoints(key);
     if (ids.isEmpty()) {
         m_plot->replot();
         return;
     }
+    // bottom-up, so the statistics panel reads in the same order as the plot;
+    // import order is whatever the instrument recorded, top-down for FlowTracker
+    std::sort(ids.begin(), ids.end(), [this](const QUuid &a, const QUuid &b) {
+        const MeasurementPoint *pa = m_model->point(a);
+        const MeasurementPoint *pb = m_model->point(b);
+        if (!pa || !pb)
+            return pb != nullptr;
+        return pa->z < pb->z;
+    });
 
     const bool relative = m_zhRadio->isChecked();
     m_plot->yAxis->setLabel(relative ? tr("z/h (-)") : tr("z (m)"));
@@ -227,12 +237,15 @@ void ProfileFrame::rebuildPlot()
         QCheckBox *check;
         QColor color;
         QString name;
+        bool joinByLine; ///< draw a profile line, or markers only
     };
-    // Okabe-Ito colors
+    // Okabe-Ito colors. Only the streamwise component is joined by a line: V and
+    // W are near-zero residuals whose sign flips from height to height, so a line
+    // through them suggests a vertical structure that the data does not contain.
     const QList<Component> components = {
-        {m_uCheck, QColor("#0072B2"), QStringLiteral("U")},
-        {m_vCheck, QColor("#E69F00"), QStringLiteral("V")},
-        {m_wCheck, QColor("#009E73"), QStringLiteral("W")},
+        {m_uCheck, QColor("#0072B2"), QStringLiteral("U"), true},
+        {m_vCheck, QColor("#E69F00"), QStringLiteral("V"), false},
+        {m_wCheck, QColor("#009E73"), QStringLiteral("W"), false},
     };
 
     QVector<double> zValues;
@@ -293,12 +306,17 @@ void ProfileFrame::rebuildPlot()
     for (int c = 0; c < components.size(); ++c) {
         if (!components.at(c).check->isChecked() || means.at(c).isEmpty())
             continue;
-        QCPGraph *graph = m_plot->addGraph(m_plot->xAxis, m_plot->yAxis);
-        graph->setData(means.at(c), zValues);
+        // The key axis is the vertical one: a graph keyed on velocity would sort
+        // its points by velocity and connect them in that order, which turned
+        // every profile into a zigzag instead of a line rising with z.
+        QCPGraph *graph = m_plot->addGraph(m_plot->yAxis, m_plot->xAxis);
+        graph->setData(zValues, means.at(c));
         graph->setName(components.at(c).name);
         QPen pen(components.at(c).color);
         pen.setWidthF(1.8);
         graph->setPen(pen);
+        graph->setLineStyle(components.at(c).joinByLine ? QCPGraph::lsLine
+                                                        : QCPGraph::lsNone);
         graph->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssCircle,
                                                components.at(c).color,
                                                components.at(c).color, 7.0));
@@ -306,6 +324,10 @@ void ProfileFrame::rebuildPlot()
 
     m_statsPanel->setPlainText(statsText);
     m_plot->rescaleAxes();
+    // rescaleAxes() fits the data exactly, which cuts the markers of the lowest
+    // and highest point in half against the axis rect
+    m_plot->xAxis->scaleRange(1.08, m_plot->xAxis->range().center());
+    m_plot->yAxis->scaleRange(1.08, m_plot->yAxis->range().center());
     m_plot->replot();
 }
 
@@ -376,7 +398,12 @@ QJsonObject ProfileFrame::saveState() const
 
 void ProfileFrame::restoreState(const QJsonObject &state)
 {
-    const int index = m_profileCombo->findText(state[QStringLiteral("profile")].toString());
+    // saveState() writes the x-y key, which is the combo's user data; in field
+    // mode the item text is the station label, so findText() would never match
+    const QString profile = state[QStringLiteral("profile")].toString();
+    int index = m_profileCombo->findData(profile);
+    if (index < 0)
+        index = m_profileCombo->findText(profile);
     if (index >= 0)
         m_profileCombo->setCurrentIndex(index);
     m_uCheck->setChecked(state[QStringLiteral("u")].toBool(true));
