@@ -15,6 +15,7 @@ class PlotFrame;
 class ProfileFrame;
 class SiteView;
 class QAction;
+class QMenu;
 class QSplitter;
 class QTabWidget;
 class QVBoxLayout;
@@ -96,6 +97,11 @@ private:
     QAction *m_w2Action = nullptr;
     QAction *m_importFtAction = nullptr;
     QAction *m_exportMapAction = nullptr;
+    // kept so the guided tour can frame a single menu title in the menu bar
+    QMenu *m_fileMenu = nullptr;
+    QMenu *m_importMenu = nullptr;
+    QMenu *m_projectMenu = nullptr;
+    QMenu *m_exportMenu = nullptr;
     GuidedTour *m_tour = nullptr;
     bool m_splitProportioned = false; ///< the one-time split on first show
 };

@@ -64,12 +64,15 @@ FlumeView::FlumeView(ProjectModel *model, QWidget *parent)
     controls->setContentsMargins(4, 4, 4, 0);
     controls->addWidget(new QLabel(tr("Flume length (m):")));
     m_lengthSpin = new QDoubleSpinBox(this);
+    // the guided tour points at these two by name
+    m_lengthSpin->setObjectName(QStringLiteral("flumeLengthSpin"));
     m_lengthSpin->setRange(0.5, 500.0);
     m_lengthSpin->setDecimals(2);
     m_lengthSpin->setValue(5.0);
     controls->addWidget(m_lengthSpin);
     controls->addWidget(new QLabel(tr("width (m):")));
     m_widthSpin = new QDoubleSpinBox(this);
+    m_widthSpin->setObjectName(QStringLiteral("flumeWidthSpin"));
     m_widthSpin->setRange(0.1, 100.0);
     m_widthSpin->setDecimals(2);
     m_widthSpin->setValue(1.0);

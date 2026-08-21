@@ -48,23 +48,29 @@ PlotFrame::PlotFrame(ProjectModel *model, QWidget *parent)
 
     toolbar->addWidget(new QLabel(tr("Point:")));
     m_pointCombo = new QComboBox(this);
+    // object names are the guided tour's handles on the controls it points at
+    m_pointCombo->setObjectName(QStringLiteral("plotPointCombo"));
     m_pointCombo->setMinimumWidth(180);
     toolbar->addWidget(m_pointCombo);
 
     toolbar->addWidget(new QLabel(tr("Data series:")));
     m_columnCombo = new QComboBox(this);
+    m_columnCombo->setObjectName(QStringLiteral("plotColumnCombo"));
     m_columnCombo->setMinimumWidth(140);
     toolbar->addWidget(m_columnCombo);
 
     auto *addButton = new QPushButton(tr("Add"), this);
+    addButton->setObjectName(QStringLiteral("plotAddButton"));
     toolbar->addWidget(addButton);
 
     toolbar->addSpacing(12);
     toolbar->addWidget(new QLabel(tr("Shown:")));
     m_seriesCombo = new QComboBox(this);
+    m_seriesCombo->setObjectName(QStringLiteral("plotSeriesCombo"));
     m_seriesCombo->setMinimumWidth(200);
     toolbar->addWidget(m_seriesCombo);
     auto *styleButton = new QPushButton(tr("Style..."), this);
+    styleButton->setObjectName(QStringLiteral("plotStyleButton"));
     toolbar->addWidget(styleButton);
     auto *removeButton = new QPushButton(tr("Remove"), this);
     toolbar->addWidget(removeButton);
@@ -72,6 +78,7 @@ PlotFrame::PlotFrame(ProjectModel *model, QWidget *parent)
     toolbar->addSpacing(12);
     toolbar->addWidget(new QLabel(tr("Palette:")));
     m_paletteCombo = new QComboBox(this);
+    m_paletteCombo->setObjectName(QStringLiteral("plotPaletteCombo"));
     m_paletteCombo->addItems({tr("Okabe-Ito"), tr("Tol bright"), tr("Tol muted"), tr("Grayscale")});
     toolbar->addWidget(m_paletteCombo);
     auto *optionsButton = new QPushButton(tr("Plot options..."), this);

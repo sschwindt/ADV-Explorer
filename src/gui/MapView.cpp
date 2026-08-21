@@ -104,6 +104,8 @@ MapView::MapView(ProjectModel *model, QWidget *parent)
     outer->setSpacing(2);
 
     auto *controlBar = new QWidget(this);
+    // the guided tour points at this bar by name
+    controlBar->setObjectName(QStringLiteral("mapControlBar"));
     controlBar->setAutoFillBackground(true);
     auto *controls = new QHBoxLayout(controlBar);
     controls->setContentsMargins(4, 2, 4, 2);

@@ -156,6 +156,7 @@ void MainWindow::buildMenus()
     // note: the addAction(text, shortcut, receiver, slot) convenience overload
     // only exists since Qt 6.3; set shortcuts explicitly for Qt 6.2 support
     QMenu *fileMenu = menuBar()->addMenu(tr("&File"));
+    m_fileMenu = fileMenu;
     fileMenu->addAction(tr("&New project"), this, &MainWindow::newProject)
         ->setShortcut(QKeySequence::New);
     fileMenu->addAction(tr("&Open project..."), this, &MainWindow::openProjectDialog)
@@ -170,6 +171,7 @@ void MainWindow::buildMenus()
 
     // --- Import ---------------------------------------------------------------
     QMenu *importMenu = menuBar()->addMenu(tr("&Import"));
+    m_importMenu = importMenu;
     importMenu->addAction(tr("Import ADV &files..."), this, &MainWindow::importFiles);
     m_importFtAction = importMenu->addAction(tr("Import FlowTracker2 &survey..."),
                                              this, &MainWindow::importFlowTrackerSurvey);
@@ -178,6 +180,7 @@ void MainWindow::buildMenus()
     // mode belongs here rather than in a menu of its own: it is a property of
     // the project and is saved with it
     QMenu *projectMenu = menuBar()->addMenu(tr("&Project"));
+    m_projectMenu = projectMenu;
     auto *modeGroup = new QActionGroup(this);
     m_labModeAction = projectMenu->addAction(tr("&Lab mode (Vectrino, flume)"));
     m_fieldModeAction = projectMenu->addAction(tr("&Field mode (FlowTracker, river)"));
@@ -210,6 +213,7 @@ void MainWindow::buildMenus()
 
     // --- Export ---------------------------------------------------------------
     QMenu *exportMenu = menuBar()->addMenu(tr("&Export"));
+    m_exportMenu = exportMenu;
     QMenu *dataMenu = exportMenu->addMenu(tr("&Data"));
     dataMenu->addAction(tr("Shown series as &CSV..."), this, &MainWindow::exportCsv);
     dataMenu->addAction(tr("&Point statistics (xlsx)..."), this, &MainWindow::exportPointStats);
@@ -759,119 +763,272 @@ void MainWindow::configureTour()
         return;
 
     const bool field = m_model->mode() == Mode::Field;
-    QWidget *plotArea = m_plotFrames.isEmpty()
-                            ? static_cast<QWidget *>(m_tabs)
-                            : static_cast<QWidget *>(m_plotFrames.first());
+    PlotFrame *plotFrame = m_plotFrames.isEmpty() ? nullptr : m_plotFrames.first();
+    QWidget *plotArea = plotFrame ? static_cast<QWidget *>(plotFrame)
+                                  : static_cast<QWidget *>(m_tabs);
+
+    // The tour walks the actual workflow, so every step points at the control
+    // the user would click next. The controls carry object names for exactly
+    // this; a missing one simply leaves that step pointing at its frame.
+    auto control = [](QWidget *parent, const char *name) -> QWidget * {
+        return parent ? parent->findChild<QWidget *>(QLatin1String(name)) : nullptr;
+    };
+    auto menuTitle = [this](QMenu *menu) {
+        return menu ? menuBar()->actionGeometry(menu->menuAction()) : QRect();
+    };
 
     QList<GuidedTour::Step> steps;
     auto step = [&steps](const QString &title, const QString &body, QWidget *target,
-                         int tab = -1) {
+                         int tab = -1, const QList<QPointer<QWidget>> &extras = {},
+                         const QRect &rect = QRect()) {
         GuidedTour::Step s;
         s.title = title;
         s.body = body;
         s.target = target;
+        s.extras = extras;
+        s.rect = rect;
         s.tabIndex = tab;
         steps.append(s);
     };
 
+    // --- overview -------------------------------------------------------------
+    step(tr("The workflow"),
+         tr("<p>This tour follows the order you actually work in:</p>"
+            "<ol><li>bring measurements in</li>"
+            "<li>set the frame of reference</li>"
+            "<li>describe every point</li>"
+            "<li>clean the signal</li>"
+            "<li>plot the time series</li>"
+            "<li>read the vertical profile</li>"
+            "<li>check the statistics</li>"
+            "<li>correct the probe alignment</li>"
+            "<li>export</li>"
+            "<li>save the project</li></ol>"
+            "<p>Each step frames the control it talks about. Nothing here blocks "
+            "the window: click along on the loaded example as you read, and use "
+            "<i>&lt; Back</i> if you want to see a step again.</p>"),
+         nullptr);
+
+    // --- 1. import ------------------------------------------------------------
+    step(tr("1. Bring measurements in"),
+         field ? tr("<p>Use <i>Import &gt; Import FlowTracker2 survey...</i>. One "
+                    "survey file holds a whole cross section, so this reads every "
+                    "vertical at once. Preferred is the instrument's own "
+                    "<b>.ft</b> archive; the <b>.ft.dat.csv</b> export works as a "
+                    "fallback with fewer columns.</p>"
+                    "<p>The wizard shows the stations it found and asks how to "
+                    "place them: type the coordinates of the two tape ends, or "
+                    "load surveyed positions from a GeoPackage or CSV. It then "
+                    "creates one measurement point per depth of every station.</p>")
+               : tr("<p>Use <i>Import &gt; Import ADV files...</i> for a batch. A "
+                    "file dialog opens first: select all files of the campaign "
+                    "(<b>.vna</b>, <b>.csv</b>, <b>.txt</b>, <b>.dat</b>), then "
+                    "give each row its x, y and z in metres, plus the water depth "
+                    "if you know it.</p>"
+                    "<p>File names of the form <b>50_10_15_run.vna</b> pre-fill the "
+                    "coordinates in centimetres, where a leading <b>__</b> means a "
+                    "negative value. For a single file it is quicker to click into "
+                    "the flume, which opens the same point editor.</p>"),
+         menuBar(), -1, {}, menuTitle(m_importMenu));
+
+    // --- 2. frame of reference ------------------------------------------------
     if (field) {
-        step(tr("The map"),
-             tr("<p>Each marker is a <b>vertical</b> of the cross section, and the "
-                "badge counts the measurement depths it holds. The dashed line is "
-                "the surveyed cross section itself.</p>"
-                "<p>Drag to pan, use the wheel to zoom. Turn <i>Online basemap</i> "
-                "off to work without a connection: the coordinate grid and the "
-                "scale bar keep the view quantitative either way.</p>"),
-             m_siteView, 0);
-        step(tr("Coordinates"),
-             tr("<p>Point x and y are <b>easting and northing</b> in the project "
-                "coordinate system, here ETRS89 / UTM zone 32N. Change it under "
-                "<i>Project &gt; Coordinate system</i>.</p>"
-                "<p>The z coordinate means the same as in the laboratory: height "
-                "above the bed, in metres.</p>"),
-             m_siteView, 0);
+        step(tr("2. Set the coordinate system"),
+             tr("<p>Point x and y are <b>easting and northing</b>, so the project "
+                "needs a coordinate system: <i>Project &gt; Coordinate system</i>. "
+                "The example uses ETRS89 / UTM zone 32N (EPSG:25832). WGS 84 and "
+                "ETRS89 UTM, Pseudo-Mercator and Gauss-Krueger are built in, so no "
+                "PROJ or GDAL installation is needed.</p>"
+                "<p>The z coordinate keeps the meaning it has in the flume: height "
+                "above the bed, in metres. That is what makes the vertical profile "
+                "and the z/h axis work in the field as well.</p>"),
+             menuBar(), -1, {}, menuTitle(m_projectMenu));
+        step(tr("Reading the map"),
+             tr("<p>Each marker is one <b>vertical</b> and its badge counts the "
+                "depths measured there; the dashed line is the surveyed cross "
+                "section. Drag to pan, use the wheel to zoom.</p>"
+                "<p>Turn <i>Online basemap</i> off to work without a connection. "
+                "The coordinate grid, the scale bar and the cursor readout keep "
+                "the view quantitative either way, and both are painted into an "
+                "exported PNG.</p>"),
+             m_siteView, -1,
+             {control(m_siteView, "mapControlBar")});
     } else {
-        step(tr("The flume"),
-             tr("<p>This is a top view of the flume, with the inlet on the left and "
-                "the flow running to the right. Each circle is a <b>measurement "
-                "location</b>.</p>"
-                "<p>Click anywhere to place a new point, or click an existing one "
-                "to edit its height, water depth, time window and filters.</p>"),
-             m_siteView, 0);
-        step(tr("Points and verticals"),
-             tr("<p>Several points sharing an x-y location form a <b>vertical "
-                "profile</b>. The example holds five heights at one location plus a "
-                "single point further downstream.</p>"
-                "<p>Setting the water depth at one point applies it to every point "
-                "of that vertical.</p>"),
-             m_siteView, 0);
+        step(tr("2. Set the flume geometry"),
+             tr("<p>Enter the real <b>length and width</b> of your flume here. The "
+                "drawing always fills the panel, so it is stretched independently "
+                "in x and y; clicked positions and markers nevertheless always map "
+                "to the metres you type in.</p>"
+                "<p>The origin, drawn as a red cross, sits at the centre of the "
+                "inlet: x runs downstream, y towards the right bank (the left bank "
+                "is negative), z upward from the bed.</p>"),
+             control(m_siteView, "flumeLengthSpin") ? control(m_siteView, "flumeLengthSpin")
+                                                    : m_siteView,
+             -1, {control(m_siteView, "flumeWidthSpin")});
     }
 
-    step(tr("Time series"),
-         tr("<p>Pick a point and a data series, then press <i>Add</i> to plot it. "
-            "Series from different points can be superimposed, and <i>Style</i> "
-            "changes line and marker appearance.</p>"
-            "<p>Besides the measured columns there is a derived series, %1, "
-            "computed as 0.5 (var U + var V + var W).</p>")
+    // --- 3. point attributes --------------------------------------------------
+    step(tr("3. Describe every point"),
+         field ? tr("<p>Click a marker to open the <b>point editor</b>. It holds "
+                    "the position, the water depth of the vertical, the data of "
+                    "that depth, an optional analysis time window and the "
+                    "despiking filters.</p>"
+                    "<p>The water depth is what the relative z/h axis and the "
+                    "profile statistics need; the import fills it in from the "
+                    "station depth the instrument recorded. Editing it at one "
+                    "point applies it to every point of that vertical.</p>")
+               : tr("<p>Click a marker to open the <b>point editor</b>, or click "
+                    "anywhere in the water to place a new point. Set:</p>"
+                    "<ul><li>x, y, z in metres,</li>"
+                    "<li>the water depth h, which applies to every point of that "
+                    "x-y position and is what the z/h axis needs,</li>"
+                    "<li>the data file, with a mapping table for its columns,</li>"
+                    "<li>the sampling frequency, used when the file has no time "
+                    "column,</li>"
+                    "<li>an optional time window that restricts every statistic "
+                    "and plot of this point.</li></ul>"),
+         m_siteView, -1);
+
+    // --- 4. despiking ---------------------------------------------------------
+    step(tr("4. Clean the signal"),
+         tr("<p>The lower half of the point editor holds the <b>despiking "
+            "filters</b>: correlation and SNR thresholds, a velocity threshold at "
+            "k standard deviations, the Goring &amp; Nikora method and iterative "
+            "phase-space thresholding. Removed samples either stay as gaps or are "
+            "filled by linear interpolation. They chain, and the raw file is never "
+            "modified.</p>"
+            "<p>%1 Under <i>Processing</i> you also choose how many CPU cores the "
+            "analysis may use, and whether w1 or w2 is the vertical component.</p>")
+             .arg(field ? tr("Field imports start with the correlation filter "
+                             "<b>off</b> on purpose: the instrument reports "
+                             "correlation on a different scale, where the "
+                             "laboratory default of 70 would reject nearly every "
+                             "sample. The SNR threshold is taken from the survey "
+                             "file itself.")
+                        : tr("The example switches the velocity threshold on, "
+                             "which drops samples further than three standard "
+                             "deviations from the mean.")),
+         m_siteView, -1);
+
+    // --- 5. time series -------------------------------------------------------
+    step(tr("5. Plot the time series"),
+         tr("<p>Pick a <b>point</b>, pick a <b>data series</b>, press <b>Add</b>. "
+            "Repeat for as many points as you want to compare: they superpose in "
+            "the same frame. <i>Style...</i> changes line and marker appearance, "
+            "the palette recolours everything at once in a colour-blind friendly "
+            "scheme, and <i>View &gt; Add plot frame below</i> gives you a second, "
+            "independent frame.</p>"
+            "<p>Besides the measured columns the list holds a derived series, "
+            "%1, computed as 0.5 (var U + var V + var W). Drag to pan, use the "
+            "wheel to zoom.</p>")
              .arg(field ? tr("<b>TKE proxy</b>") : tr("<b>TKE</b>")),
-         plotArea, 0);
+         control(plotArea, "plotPointCombo") ? control(plotArea, "plotPointCombo") : plotArea,
+         0,
+         {control(plotArea, "plotColumnCombo"), control(plotArea, "plotAddButton")});
 
     if (field) {
-        step(tr("Why \"proxy\""),
+        step(tr("Why it says \"proxy\""),
              tr("<p>A FlowTracker2 point is roughly 60 samples at 2 Hz over 30 s. "
-                "That resolves nothing above 1 Hz, so the variance it yields is not "
-                "the turbulent kinetic energy a laboratory record measures.</p>"
+                "That resolves nothing above 1 Hz, so the variance it yields is "
+                "not the turbulent kinetic energy a laboratory record measures.</p>"
                 "<p>It stays a useful <i>relative</i> indicator between stations of "
-                "one survey, which is why it is labelled as a proxy everywhere "
-                "instead of being hidden or silently renamed. Dissipation is "
-                "reported as not estimable for the same reason.</p>"),
+                "one survey, which is why it is computed but labelled as a proxy "
+                "everywhere, including in the exported workbooks. Dissipation is "
+                "reported as not estimable for the same reason. Longer points, 2 "
+                "to 5 minutes, make these numbers far more trustworthy.</p>"),
              plotArea, 0);
     }
 
-    step(tr("Despiking"),
-         tr("<p>Open a point from the %1 and use the filter section: correlation "
-            "and SNR thresholds, a velocity threshold, and the Goring &amp; Nikora "
-            "method. Removed samples are either left as gaps or interpolated.</p>"
+    // --- 6. vertical profile --------------------------------------------------
+    step(tr("6. Read the vertical profile"),
+         tr("<p>Every entry of this list is one <b>vertical</b>, that is all points "
+            "sharing an x-y position. The plot shows the mean U, V and W of each "
+            "height: U is joined by a line, V and W are drawn as markers only, "
+            "because they are near-zero residuals whose sign flips from height to "
+            "height.</p>"
+            "<p>The check boxes hide components you are not interested in, and the "
+            "z / z/h radio buttons switch between absolute height and relative "
+            "depth, which needs the water depths of step 3.</p>"),
+         control(m_profileFrame, "profileCombo") ? control(m_profileFrame, "profileCombo")
+                                                 : m_profileFrame,
+         1,
+         {control(m_profileFrame, "profileUCheck"), control(m_profileFrame, "profileWCheck"),
+          control(m_profileFrame, "profileZRadio"), control(m_profileFrame, "profileZhRadio")});
+
+    // --- 7. statistics --------------------------------------------------------
+    step(tr("7. Check the statistics"),
+         tr("<p>For every height of the selected vertical this panel lists mean, "
+            "standard deviation, skewness and kurtosis of u, v and w, the Reynolds "
+            "stresses u'v', u'w' and v'w', the sample count n, %1.</p>"
             "<p>%2</p>")
-             .arg(field ? tr("map") : tr("flume"),
-                  field ? tr("Field imports start with the correlation filter "
-                             "<b>off</b>: the instrument reports correlation on a "
-                             "different scale, where the laboratory default of 70 "
-                             "would reject nearly every sample.")
-                        : tr("The example enables the velocity threshold, which "
-                             "removes samples further than three standard "
-                             "deviations from the mean.")),
-         m_siteView, 0);
+             .arg(field ? tr("the TKE proxy and the dissipation rate, which a "
+                             "30 s point cannot deliver")
+                        : tr("the turbulent kinetic energy and the dissipation "
+                             "rate from an inertial-subrange fit of the u "
+                             "spectrum"),
+                  field ? tr("Read U across the heights first. V and W are usually "
+                             "much smaller, and near a bank, where the flow is a "
+                             "few millimetres per second, no component dominates "
+                             "at all. The vertical component is also the noisiest "
+                             "one the instrument delivers, so its scatter is "
+                             "largely instrument noise.")
+                        : tr("Watch n: a filter that removes a large share of the "
+                             "samples shows up here first. The dissipation rate "
+                             "needs a resolved inertial subrange, so it is only "
+                             "meaningful for a fast, long record.")),
+         control(m_profileFrame, "profileStatsPanel") ? control(m_profileFrame, "profileStatsPanel")
+                                                      : m_profileFrame,
+         1);
 
-    step(tr("Vertical profiles"),
-         tr("<p>The second tab plots the profile of a vertical against z or z/h, "
-            "with the statistics of each height beside it: means, standard "
-            "deviations, skewness and kurtosis, the Reynolds stresses and %1.</p>"
-            "<p>This is also where <b>probe alignment</b> is corrected: heading, "
-            "pitch and roll can be proposed automatically so the mean V and W of "
-            "the profile go to zero, or set by hand.</p>")
-             .arg(field ? tr("the TKE proxy") : tr("TKE and dissipation")),
-         m_profileFrame, 1);
+    // --- 8. probe alignment ---------------------------------------------------
+    step(tr("8. Correct the probe alignment"),
+         tr("<p>A probe mounted slightly rotated shows a mean V and W that are not "
+            "zero even in uniform flow. Press <b>Probe alignment...</b>, then "
+            "<i>Propose</i>: the app computes the heading, pitch and roll that "
+            "zero the mean transverse and vertical velocities and the residual "
+            "v'w' coupling of this vertical.</p>"
+            "<p>Accept it or type your own angles. The rotation applies to every "
+            "point of the vertical and to every plot, statistic and export that "
+            "follows, it can be reset to zero at any time, and it never touches "
+            "the raw data.</p>"),
+         control(m_profileFrame, "profileAlignButton") ? control(m_profileFrame, "profileAlignButton")
+                                                       : m_profileFrame,
+         1);
 
-    step(tr("Exporting"),
-         tr("<p>Under <i>Export</i> you can write the shown series as CSV, the "
-            "current frame as a 300 dpi PNG%1, and per-point or per-profile "
-            "statistics as xlsx, including into the bundled profile template that "
-            "adds velocity magnitude and direction.</p>"
-            "<p>Under <i>File &gt; Save project as</i> the whole analysis, raw data "
-            "included, goes into a single .advProj file that opens on any "
-            "computer.</p>")
-             .arg(field ? tr(", the map with its OpenStreetMap attribution")
+    // --- 9. export ------------------------------------------------------------
+    step(tr("9. Export the results"),
+         tr("<p>Everything you see can leave the application:</p>"
+            "<ul><li><i>Data &gt; Shown series as CSV</i>: the plotted series, "
+            "despiked and alignment-corrected exactly as displayed,</li>"
+            "<li><i>Data &gt; Point statistics (xlsx)</i>: one row per point,</li>"
+            "<li><i>Data &gt; Profile statistics (template xlsx)</i>: per vertical, "
+            "written into the bundled template that adds velocity magnitude and "
+            "direction,</li>"
+            "<li><i>Plots &gt; Current frame as PNG</i>: 300 dpi, as displayed%1."
+            "</li></ul>")
+             .arg(field ? tr(", and the map with its OpenStreetMap attribution")
                         : QString()),
-         menuBar(), -1);
+         menuBar(), -1, {}, menuTitle(m_exportMenu));
 
-    step(tr("That is the tour"),
-         tr("<p>You can reopen it any time from <i>Help &gt; Restart guided "
-            "tour</i>, and load the other example from the same menu.</p>"
-            "<p>The full documentation, including the file formats and the "
-            "definitions behind every statistic, is at "
+    // --- 10. save -------------------------------------------------------------
+    step(tr("10. Save the project"),
+         tr("<p><i>File &gt; Save project as</i> writes a single <b>.advProj</b> "
+            "file that contains the raw measurement data together with every "
+            "setting: positions, depths, time windows, filters, alignment angles, "
+            "plotted series and their styles.</p>"
+            "<p>It is self-contained on purpose, so it opens on a colleague's "
+            "computer without any of the original files being present.</p>"),
+         menuBar(), -1, {}, menuTitle(m_fileMenu));
+
+    step(tr("That is the workflow"),
+         tr("<p>Reopen this tour any time from <i>Help &gt; Restart guided tour</i>, "
+            "and load the other example from the same menu to see how the %1 side "
+            "works.</p>"
+            "<p>The full manual, including the file formats and the definition "
+            "behind every statistic, is at "
             "<a href=\"https://adv-explorer.readthedocs.io/\">"
-            "adv-explorer.readthedocs.io</a>.</p>"),
+            "adv-explorer.readthedocs.io</a>.</p>")
+             .arg(field ? tr("laboratory") : tr("field")),
          nullptr, -1);
 
     m_tour->setSteps(steps);
@@ -989,6 +1146,9 @@ bool MainWindow::captureDocScreenshots(const QString &outputDir)
     applyPlotSettings();
     m_tabs->setCurrentIndex(0);
     startGuidedTour();
+    // a step with a highlight, so the picture shows what the tour does
+    if (m_tour)
+        m_tour->start(3);
     QCoreApplication::processEvents();
     ok = snap(this, QStringLiteral("guided-tour.png")) && ok;
     if (m_tour)

@@ -25,7 +25,7 @@ The quickest way to see what the application does is to open a ready-made projec
 
 Both help-examples are embedded in the application, so they work offline on a computer that has never seen a measurement file. Loading one example replaces the current project, and you are asked first if that would discard anything.
 
-A **guided tour** opens with the example and steps through the main functions, highlighting the part of the window each step describes. It is not modal: you can click around, try things and close it whenever you like. Reopen it with *Help > Restart guided tour*, and note that its steps follow the campaign mode you are in, because what matters differs between the flume and the river.
+A **guided tour** opens with the example and walks the workflow in the order you actually work in: bring measurements in, set the frame of reference, describe every point, clean the signal, plot the time series, read the vertical profile, check the statistics, correct the probe alignment, export, save. Each step frames the control it is about, down to the single menu title you are meant to open, and raises the tab it lives on. It is not modal: click along on the example as you read, step back and forth, and close it whenever you like. Reopen it with *Help > Restart guided tour*. The steps follow the campaign mode you are in, because what matters differs between the flume and the river.
 
 .. figure:: img/guided-tour.png
    :alt: The guided tour panel beside the field example

@@ -6,6 +6,7 @@
 #include "GuidedTour.h"
 
 #include <QEvent>
+#include <QtGlobal>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPainter>
@@ -27,25 +28,40 @@ TourHighlight::TourHighlight(QWidget *parent)
     hide();
 }
 
-void TourHighlight::follow(QWidget *target)
+void TourHighlight::follow(QWidget *target, const QList<QPointer<QWidget>> &extras,
+                           const QRect &rect)
 {
     m_target = target;
+    m_extras = extras;
+    m_rect = rect;
     reposition();
+}
+
+QRect TourHighlight::mappedRect(QWidget *widget, const QRect &area) const
+{
+    if (!widget || !widget->isVisible() || !parentWidget())
+        return QRect();
+    // map through the shared window, so the highlight lands correctly no matter
+    // how deeply the target is nested in splitters and tab widgets
+    const QRect local = area.isNull() ? widget->rect() : area;
+    const QPoint topLeft =
+        parentWidget()->mapFromGlobal(widget->mapToGlobal(local.topLeft()));
+    return QRect(topLeft, local.size());
 }
 
 void TourHighlight::reposition()
 {
-    QWidget *target = m_target.data();
-    if (!target || !target->isVisible() || !parentWidget()) {
+    if (!parentWidget()) {
         hide();
         return;
     }
 
-    // map through the shared window, so the highlight lands correctly no matter
-    // how deeply the target is nested in splitters and tab widgets
-    const QPoint topLeft =
-        parentWidget()->mapFromGlobal(target->mapToGlobal(QPoint(0, 0)));
-    QRect area(topLeft, target->size());
+    QRect area = mappedRect(m_target.data(), m_rect);
+    for (const QPointer<QWidget> &extra : m_extras) {
+        const QRect other = mappedRect(extra.data(), QRect());
+        area = area.isNull() ? other : (other.isNull() ? area : area.united(other));
+    }
+
     area = area.intersected(parentWidget()->rect());
     if (!area.isValid() || area.isEmpty()) {
         hide();
@@ -144,7 +160,9 @@ GuidedTour::GuidedTour(QWidget *parent)
             m_highlight->hide();
         else if (visible && m_highlight && m_current >= 0
                  && m_current < m_steps.size())
-            m_highlight->follow(m_steps.at(m_current).target.data());
+            m_highlight->follow(m_steps.at(m_current).target.data(),
+                                m_steps.at(m_current).extras,
+                                m_steps.at(m_current).rect);
     });
 }
 
@@ -154,13 +172,13 @@ void GuidedTour::setSteps(const QList<Step> &steps)
     m_current = -1;
 }
 
-void GuidedTour::start()
+void GuidedTour::start(int index)
 {
     if (m_steps.isEmpty())
         return;
     show();
     raise();
-    showStep(0);
+    showStep(qBound(0, index, m_steps.size() - 1));
 }
 
 void GuidedTour::showStep(int index)
@@ -179,7 +197,7 @@ void GuidedTour::showStep(int index)
     updateButtons();
 
     if (m_highlight) {
-        m_highlight->follow(step.target.data());
+        m_highlight->follow(step.target.data(), step.extras, step.rect);
         // raising a tab relayouts its page, so the geometry read above can be
         // the pre-layout one; settle it once the event loop has caught up
         QTimer::singleShot(0, m_highlight, &TourHighlight::reposition);

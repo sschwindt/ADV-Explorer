@@ -10,6 +10,7 @@
 #include <QDockWidget>
 #include <QList>
 #include <QPointer>
+#include <QRect>
 #include <QString>
 
 class QLabel;
@@ -26,8 +27,10 @@ class TourHighlight : public QWidget
 public:
     explicit TourHighlight(QWidget *parent);
 
-    /// Cover `target`, or hide the highlight when it is null or invisible.
-    void follow(QWidget *target);
+    /// Cover `target` (or `rect` inside it) together with `extras`, or hide the
+    /// highlight when nothing of that is visible.
+    void follow(QWidget *target, const QList<QPointer<QWidget>> &extras = {},
+                const QRect &rect = QRect());
     /// Re-read the target geometry, for instance after a resize.
     void reposition();
 
@@ -35,7 +38,11 @@ protected:
     void paintEvent(QPaintEvent *event) override;
 
 private:
+    QRect mappedRect(QWidget *widget, const QRect &area) const;
+
     QPointer<QWidget> m_target;
+    QList<QPointer<QWidget>> m_extras;
+    QRect m_rect; ///< sub-area of m_target in its own coordinates, may be null
 };
 
 /// A dockable, non-modal walkthrough of the main functions.
@@ -49,18 +56,26 @@ class GuidedTour : public QDockWidget
 {
     Q_OBJECT
 public:
-    /// One step: what to say, which widget to point at, and which tab to show.
+    /// One step: what to say, which widgets to point at, and which tab to show.
+    ///
+    /// A step of a workflow tour usually points at the control the user is meant
+    /// to click next. `extras` covers the neighbouring controls that belong to
+    /// the same action, and `rect` narrows the highlight to one part of the
+    /// target, which is how a single menu title is framed inside the menu bar.
     struct Step {
         QString title;
         QString body;
         QPointer<QWidget> target;
+        QList<QPointer<QWidget>> extras;
+        QRect rect;
         int tabIndex = -1; ///< tab to raise before showing the step, -1 to leave it
     };
 
     explicit GuidedTour(QWidget *parent = nullptr);
 
     void setSteps(const QList<Step> &steps);
-    void start();
+    /// Show the tour, beginning at `index` (clamped into the step range).
+    void start(int index = 0);
 
 signals:
     /// Raise this tab before the step is shown.

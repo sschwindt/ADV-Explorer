@@ -115,14 +115,18 @@ ProfileFrame::ProfileFrame(ProjectModel *model, QWidget *parent)
     toolbar->setContentsMargins(4, 4, 4, 0);
     toolbar->addWidget(new QLabel(tr("Profile (x|y):")));
     m_profileCombo = new QComboBox(this);
+    // object names are the guided tour's handles on the controls it points at
+    m_profileCombo->setObjectName(QStringLiteral("profileCombo"));
     m_profileCombo->setMinimumWidth(160);
     toolbar->addWidget(m_profileCombo);
 
     m_uCheck = new QCheckBox(QStringLiteral("U"), this);
+    m_uCheck->setObjectName(QStringLiteral("profileUCheck"));
     m_uCheck->setChecked(true);
     m_vCheck = new QCheckBox(QStringLiteral("V"), this);
     m_vCheck->setChecked(true);
     m_wCheck = new QCheckBox(QStringLiteral("W"), this);
+    m_wCheck->setObjectName(QStringLiteral("profileWCheck"));
     m_wCheck->setChecked(true);
     toolbar->addWidget(m_uCheck);
     toolbar->addWidget(m_vCheck);
@@ -130,13 +134,16 @@ ProfileFrame::ProfileFrame(ProjectModel *model, QWidget *parent)
 
     toolbar->addSpacing(12);
     m_zRadio = new QRadioButton(tr("z (m)"), this);
+    m_zRadio->setObjectName(QStringLiteral("profileZRadio"));
     m_zRadio->setChecked(true);
     m_zhRadio = new QRadioButton(tr("z/h (-)"), this);
+    m_zhRadio->setObjectName(QStringLiteral("profileZhRadio"));
     toolbar->addWidget(m_zRadio);
     toolbar->addWidget(m_zhRadio);
 
     toolbar->addSpacing(12);
     auto *correctionButton = new QPushButton(tr("Probe alignment..."), this);
+    correctionButton->setObjectName(QStringLiteral("profileAlignButton"));
     toolbar->addWidget(correctionButton);
     auto *optionsButton = new QPushButton(tr("Plot options..."), this);
     toolbar->addWidget(optionsButton);
@@ -150,6 +157,7 @@ ProfileFrame::ProfileFrame(ProjectModel *model, QWidget *parent)
 
     // top-right statistics legend panel
     m_statsPanel = new QPlainTextEdit(this);
+    m_statsPanel->setObjectName(QStringLiteral("profileStatsPanel"));
     m_statsPanel->setReadOnly(true);
     QFont mono = m_statsPanel->font();
     mono.setFamily(QStringLiteral("monospace"));
